@@ -1,0 +1,24 @@
+# Visão computacional
+opencv-python>=4.8.0
+mediapipe>=0.10.0
+
+# Backend
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.0
+pydantic>=2.5.0
+python-multipart>=0.0.6
+
+# Configuração
+pyyaml>=6.0
+python-dotenv>=1.0.0
+
+# Prototipagem
+streamlit>=1.28.0
+
+# Dev e testes
+pytest>=7.4.0
+httpx>=0.25.0
+black>=23.0.0
+ruff>=0.1.0

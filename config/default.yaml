@@ -1,0 +1,23 @@
+# Configuração padrão - Runners (biomecânica de corrida)
+
+camera:
+  camera_index: 0
+  width: 1280
+  height: 720
+  fps: 30
+
+pose:
+  model_complexity: 1   # 0, 1 ou 2 (MediaPipe)
+  min_detection_confidence: 0.5
+  min_tracking_confidence: 0.5
+
+output:
+  fps: 30
+  draw_landmarks: true
+
+analysis:
+  enabled_metrics:
+    - angles
+    - cadence
+    - ground_contact_time
+    - distance
