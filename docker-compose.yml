@@ -1,43 +1,37 @@
-services:
-  db:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-runners}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-runners_secret}
-      POSTGRES_DB: ${POSTGRES_DB:-runners_db}
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-runners} -d ${POSTGRES_DB:-runners_db}"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+# Requer `.env` na raiz com DATABASE_URL do Supabase (veja .env.example).
+# Não há serviço Postgres local: a API e o Streamlit usam o banco na nuvem.
 
+services:
   api:
     build: .
+    env_file:
+      - .env
     ports:
-      - "8000:8000"
-    environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-runners}:${POSTGRES_PASSWORD:-runners_secret}@db:5432/${POSTGRES_DB:-runners_db}
-    depends_on:
-      db:
-        condition: service_healthy
+      - "${API_PORT}:${API_PORT}"
+    command:
+      [
+        "uvicorn",
+        "api.main:app",
+        "--host",
+        "${API_HOST}",
+        "--port",
+        "${API_PORT}",
+      ]
 
   streamlit:
     build: .
-    command: streamlit run streamlit_app/app.py --server.port=8501 --server.address=0.0.0.0
+    env_file:
+      - .env
     ports:
-      - "8501:8501"
-    environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-runners}:${POSTGRES_PASSWORD:-runners_secret}@db:5432/${POSTGRES_DB:-runners_db}
-    depends_on:
-      db:
-        condition: service_healthy
+      - "${STREAMLIT_PORT}:${STREAMLIT_PORT}"
+    command:
+      [
+        "streamlit",
+        "run",
+        "streamlit_app/app.py",
+        "--server.port=${STREAMLIT_PORT}",
+        "--server.address=0.0.0.0",
+      ]
     volumes:
       - ./data:/app/data
       - ./config:/app/config
-
-volumes:
-  pgdata:

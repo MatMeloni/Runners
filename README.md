@@ -1,104 +1,104 @@
 # Runners
 
-Monitoramento em tempo real da **biomecânica de corrida** usando visão computacional. O sistema transforma qualquer câmera em um sensor biomecânico: estimativa de pose (MediaPipe), métricas de angulação, cadência, tempo de contato com o solo e distância, com backend FastAPI, persistência em PostgreSQL e dashboards em React e Streamlit.
+Monitoramento em tempo real da **biomecânica de corrida** usando visão computacional. O sistema transforma qualquer câmera em um sensor biomecânico: estimativa de pose (MediaPipe), métricas de angulação, cadência, tempo de contato com o solo e distância, com backend FastAPI, persistência no **Supabase** (PostgreSQL gerenciado) e dashboards em React e Streamlit.
 
-## O problema e a solução
+## Configuração obrigatória (`.env`)
 
-- **Problema:** Análise biomecânica precisa hoje está restrita a laboratórios caros (sensores inerciais, câmeras infravermelhas) ou à análise subjetiva de treinadores, imprecisa em movimentos de alta velocidade.
-- **Solução:** Usar algoritmos de Pose Estimation para transformar uma câmera comum em um sensor virtual: o sistema interpreta a geometria do movimento em tempo (quase) real e entrega métricas para prevenção de lesões e otimização de performance.
+**Não há valores padrão de configuração no código.** Tudo vem do arquivo **`.env`** na raiz do repositório.
 
-## Stack
+1. No [Supabase](https://supabase.com), crie um projeto e abra **Project Settings → Database**.
+2. Copie a **Connection string** no formato **URI** (Session mode ou Transaction pooler costuma funcionar bem com apps em Python).
+3. Copie o modelo e edite:
 
-| Camada | Tecnologia |
-|--------|------------|
-| Visão | Python, MediaPipe (pose), OpenCV (imagem) |
-| Métricas | Ângulos (joelho, quadril, tronco), tempo de contato, cadência, distância |
-| Frontend | React (dashboard), Streamlit (prototipagem) |
-| Backend | FastAPI, PostgreSQL |
-| Ambiente | Docker, Docker Compose |
+   ```bash
+   cp .env.example .env
+   ```
+
+4. Cole a URI em **`DATABASE_URL`** no `.env` e preencha o restante conforme `.env.example` (API, CORS, Vite, Streamlit).
+
+O Supabase expõe **PostgreSQL** na nuvem; o app usa essa URI com SQLAlchemy (`psycopg2`), sem container Postgres neste repositório.
+
+## Pré-requisitos
+
+- Python 3.11+
+- Node.js (frontend)
+- Projeto Supabase com `DATABASE_URL` válida (rede/DNS precisam alcançar o host da URI)
+
+## Como rodar (local)
+
+Na **raiz** do repositório, com o `.env` já criado e `DATABASE_URL` do Supabase:
+
+### 1. Backend (FastAPI)
+
+```bash
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+python scripts/run_api_dev.py
+```
+
+- API: `http://localhost:<API_PORT>` (ex.: `8000`)
+- Swagger: `http://localhost:<API_PORT>/docs`
+
+### 2. Frontend (Vite)
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+O Vite lê o **`.env` na raiz** (`VITE_*` e `API_BASE_URL`). Dashboard: `http://localhost:<VITE_PORT>`.
+
+### 3. Streamlit (opcional, sem Docker)
+
+```bash
+streamlit run streamlit_app/app.py --server.port <STREAMLIT_PORT>
+```
+
+Garanta que o processo herde o `.env` (mesma `DATABASE_URL` do Supabase).
+
+## Como rodar com Docker Compose
+
+O Compose sobe **API** e **Streamlit**; o banco é sempre o do **Supabase** via `DATABASE_URL` no `.env`.
+
+```bash
+docker compose up --build
+```
+
+- API: `http://localhost:<API_PORT>`
+- Streamlit: `http://localhost:<STREAMLIT_PORT>`
 
 ## Estrutura do projeto
 
 ```
 Runners/
+├── api/
+├── scripts/run_api_dev.py
+├── frontend/
 ├── src/
-│   ├── capture/      # Captura de vídeo (webcam, arquivo)
-│   ├── processing/   # Pipeline de imagem e pose (MediaPipe)
-│   ├── analysis/     # Métricas biomecânicas
-│   └── utils/        # Constantes e helpers
-├── api/              # FastAPI (rotas, DB)
-├── config/           # Configuração (YAML/JSON)
-├── data/
-│   ├── videos/       # Vídeos de teste
-│   └── models/       # Modelos (se houver)
-├── docs/             # Documentação técnica
-├── frontend/         # App React (dashboard)
-├── streamlit_app/    # App Streamlit (prototipagem)
+├── streamlit_app/
+├── docs/
+├── .env.example
 ├── requirements.txt
 ├── Dockerfile
 └── docker-compose.yml
 ```
 
-## Pré-requisitos
+Postman e detalhes da URI: `docs/postman-e-supabase.md`.
 
-- Python 3.11+
-- Node.js (para o frontend React)
-- PostgreSQL (local ou via Docker)
-- Opcional: Docker e Docker Compose para rodar tudo em containers
+### Se a API não conecta ao Supabase (`could not translate host name`)
 
-## Execução local
+A URI **Direct** pode ser só IPv6. Use **Transaction pooler** (porta 6543) no painel do Supabase e atualize `DATABASE_URL`. Ver `docs/postman-e-supabase.md`.
 
-1. **Ambiente Python**
+## Stack
 
-   ```bash
-   python -m venv .venv
-   .venv\Scripts\activate   # Windows
-   # source .venv/bin/activate   # Linux/macOS
-   pip install -r requirements.txt
-   ```
-
-2. **Variáveis de ambiente**
-
-   Copie `.env.example` para `.env` e ajuste (por exemplo `DATABASE_URL` para o PostgreSQL).
-
-3. **PostgreSQL**
-
-   Suba um banco (local ou só o serviço `db` com `docker-compose up -d db`) e crie o schema se necessário (veja `api/` e `docs/`).
-
-4. **API**
-
-   ```bash
-   uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
-   ```
-
-5. **Streamlit (prototipagem)**
-
-   ```bash
-   streamlit run streamlit_app/app.py
-   ```
-
-6. **Frontend React**
-
-   ```bash
-   cd frontend && npm install && npm run dev
-   ```
-
-## Execução com Docker
-
-```bash
-cp .env.example .env
-docker-compose up --build
-```
-
-- API: http://localhost:8000  
-- Docs da API: http://localhost:8000/docs  
-- Streamlit (se configurado no compose): http://localhost:8501  
-
-## Próximos passos
-
-- Ajuste de heurísticas para tempo de contato com o solo (GCT).
-- Integração em tempo real no React (ex.: WebSocket).
-- Calibração para estimativa de distância percorrida.
+| Camada | Tecnologia |
+|--------|------------|
+| Visão | Python, MediaPipe, OpenCV |
+| Frontend | React (Vite) |
+| Backend | FastAPI |
+| Dados | Supabase (Postgres) |
 
 ## Licença
 

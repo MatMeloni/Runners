@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 
-const API_BASE = import.meta.env.VITE_API_URL || ''
+import DashboardHeader from './components/DashboardHeader.jsx'
+import MetricsDisplay from './components/MetricsDisplay.jsx'
+import { API_BASE } from './config/api.js'
 
 export default function App() {
   const [metrics, setMetrics] = useState(null)
@@ -28,10 +30,7 @@ export default function App() {
 
   return (
     <div style={{ padding: '2rem', maxWidth: 1200, margin: '0 auto' }}>
-      <h1 style={{ marginBottom: '0.5rem' }}>Runners — Dashboard</h1>
-      <p style={{ color: '#71717a', marginBottom: '2rem' }}>
-        Monitoramento em tempo real da biomecânica de corrida
-      </p>
+      <DashboardHeader />
 
       <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
         <button
@@ -56,58 +55,7 @@ export default function App() {
         </p>
       )}
 
-      {metrics && (
-        <>
-          <h2 style={{ marginBottom: '1rem' }}>Métricas</h2>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-              gap: '1rem',
-              marginBottom: '2rem',
-            }}
-          >
-            <MetricCard title="Cadência" value={metrics.cadence_steps_per_min} unit="passos/min" />
-            <MetricCard title="GCT" value={metrics.ground_contact_time_s} unit="s" />
-            <MetricCard title="Distância" value={metrics.distance_m} unit="m" />
-          </div>
-          <div style={{ marginBottom: '1rem' }}>
-            <h3 style={{ marginBottom: '0.5rem' }}>Ângulos (joelho, quadril, tronco)</h3>
-            <pre
-              style={{
-                background: '#18181b',
-                padding: '1rem',
-                borderRadius: 8,
-                overflow: 'auto',
-                fontSize: 14,
-              }}
-            >
-              {JSON.stringify(metrics.angles || {}, null, 2)}
-            </pre>
-          </div>
-          <p style={{ color: '#71717a', fontSize: 14 }}>
-            Placeholder para vídeo ao vivo ou último frame (integrar WebSocket em seguida).
-          </p>
-        </>
-      )}
-    </div>
-  )
-}
-
-function MetricCard({ title, value, unit }) {
-  return (
-    <div
-      style={{
-        background: '#18181b',
-        padding: '1rem',
-        borderRadius: 8,
-        border: '1px solid #27272a',
-      }}
-    >
-      <div style={{ color: '#71717a', fontSize: 12, marginBottom: 4 }}>{title}</div>
-      <div style={{ fontSize: 24, fontWeight: 600 }}>
-        {value != null ? value : '—'} {unit}
-      </div>
+      <MetricsDisplay metrics={metrics} />
     </div>
   )
 }

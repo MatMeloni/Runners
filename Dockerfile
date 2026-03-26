@@ -19,6 +19,5 @@ COPY api/ ./api/
 COPY config/ ./config/
 COPY streamlit_app/ ./streamlit_app/
 
-# Comando padrão: API
-EXPOSE 8000
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Porta e host vêm das variáveis de ambiente em runtime (veja .env.example)
+CMD ["sh", "-c", "uvicorn api.main:app --host $API_HOST --port $API_PORT"]

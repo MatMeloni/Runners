@@ -1,128 +1,54 @@
-"""App FastAPI: health, métricas (stub), CRUD de sessões."""
+"""Ponto de entrada FastAPI: middleware, ciclo de vida e registro de routers."""
 
-from datetime import datetime
-from typing import Any
+import logging
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from sqlalchemy.exc import OperationalError
 
-from api.database import get_db, init_db, SessionModel
+from api.config import get_cors_origins
+from api.database import init_db
+from api.routers import health_router, metrics_router, sessions_router
 
 app = FastAPI(title="Runners API", version="0.1.0")
+logger = logging.getLogger(__name__)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=get_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
-# --- Schemas ---
-
-class BiomechanicsMetrics(BaseModel):
-    angles: dict[str, float] = {}
-    ground_contact_time_s: float | None = None
-    cadence_steps_per_min: float | None = None
-    distance_m: float | None = None
-
-
-class SessionCreate(BaseModel):
-    name: str | None = None
-    source: str | None = None
-    metadata: dict[str, Any] | None = None
-
-
-class SessionResponse(BaseModel):
-    id: int
-    name: str | None
-    source: str | None
-    created_at: datetime
-    metadata: dict[str, Any] | None = None
-
-    class Config:
-        from_attributes = True
-
-
-# --- Startup ---
-
 @app.on_event("startup")
 def startup() -> None:
-    init_db()
+    app.state.db_available = True
+    try:
+        init_db()
+    except OperationalError as exc:
+        app.state.db_available = False
+        logger.warning(
+            "Banco indisponível no startup. API continua em modo degradado: %s",
+            exc,
+        )
 
 
-# --- Routes ---
-
-@app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
-
-
-@app.get("/api/metrics", response_model=BiomechanicsMetrics)
-def get_metrics() -> BiomechanicsMetrics:
-    """
-    Retorna métricas biomecânicas (stub).
-    Em produção: receberia frame ou session_id e calcularia em cima do pipeline.
-    """
-    return BiomechanicsMetrics(
-        angles={"knee_left": 165.0, "knee_right": 162.0, "hip_left": 145.0, "hip_right": 148.0, "trunk": 85.0},
-        ground_contact_time_s=0.25,
-        cadence_steps_per_min=170.0,
-        distance_m=50.0,
+@app.exception_handler(OperationalError)
+async def database_error_handler(_: Request, exc: OperationalError) -> JSONResponse:
+    return JSONResponse(
+        status_code=503,
+        content={
+            "detail": (
+                "Banco indisponível. Verifique a DATABASE_URL, rede/VPN/firewall "
+                "e conectividade com o Supabase."
+            )
+        },
     )
 
 
-@app.get("/api/sessions", response_model=list[SessionResponse])
-def list_sessions() -> list[SessionResponse]:
-    """Lista todas as sessões de análise."""
-    with get_db() as db:
-        rows = db.query(SessionModel).order_by(SessionModel.created_at.desc()).all()
-        return [
-            SessionResponse(
-                id=r.id,
-                name=r.name,
-                source=r.source,
-                created_at=r.created_at or datetime.utcnow(),
-                metadata=r.metadata_,
-            )
-            for r in rows
-        ]
-
-
-@app.post("/api/sessions", response_model=SessionResponse)
-def create_session(body: SessionCreate) -> SessionResponse:
-    """Cria uma nova sessão de análise."""
-    with get_db() as db:
-        row = SessionModel(
-            name=body.name,
-            source=body.source,
-            metadata_=body.metadata,
-        )
-        db.add(row)
-        db.commit()
-        db.refresh(row)
-        return SessionResponse(
-            id=row.id,
-            name=row.name,
-            source=row.source,
-            created_at=row.created_at or datetime.utcnow(),
-            metadata=row.metadata_,
-        )
-
-
-@app.get("/api/sessions/{session_id}", response_model=SessionResponse)
-def get_session(session_id: int) -> SessionResponse:
-    """Retorna uma sessão pelo id."""
-    with get_db() as db:
-        row = db.query(SessionModel).filter(SessionModel.id == session_id).first()
-        if not row:
-            raise HTTPException(status_code=404, detail="Session not found")
-        return SessionResponse(
-            id=row.id,
-            name=row.name,
-            source=row.source,
-            created_at=row.created_at or datetime.utcnow(),
-            metadata=row.metadata_,
-        )
+app.include_router(health_router)
+app.include_router(metrics_router)
+app.include_router(sessions_router)
