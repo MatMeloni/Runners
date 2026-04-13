@@ -1,16 +1,35 @@
-"""Conexão ao banco Supabase (PostgreSQL) via DATABASE_URL e modelo da tabela sessions."""
+"""Conexão ao banco Supabase (PostgreSQL) via DATABASE_URL e modelos ORM."""
 
+import enum
 from contextlib import contextmanager
 from datetime import datetime
 from typing import Generator
 
-from sqlalchemy import Column, DateTime, Integer, JSON, String, create_engine
+from sqlalchemy import (
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    JSON,
+    String,
+    Text,
+    create_engine,
+)
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.exc import OperationalError
-from sqlalchemy.orm import Session, declarative_base, sessionmaker
+from sqlalchemy.orm import Session, declarative_base, relationship, sessionmaker
 
 from api.config import get_database_url
 
 Base = declarative_base()
+
+
+class SessionStatus(str, enum.Enum):
+    pending = "pending"
+    processing = "processing"
+    done = "done"
+    failed = "failed"
 
 
 class SessionModel(Base):
@@ -21,6 +40,27 @@ class SessionModel(Base):
     source = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     metadata_ = Column("metadata", JSON, nullable=True)
+    status = Column(String(32), nullable=False, default=SessionStatus.pending.value)
+    video_path = Column(Text, nullable=True)
+    error_msg = Column(Text, nullable=True)
+
+    results = relationship("AnalysisResult", back_populates="session", cascade="all, delete-orphan")
+
+
+class AnalysisResult(Base):
+    __tablename__ = "analysis_results"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    session_id = Column(Integer, ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False)
+    frame_index = Column(Integer, nullable=False)
+    timestamp_s = Column(Float, nullable=True)
+    angles = Column(JSONB, nullable=True)
+    ground_contact_time_s = Column(Float, nullable=True)
+    cadence_steps_per_min = Column(Float, nullable=True)
+    distance_m = Column(Float, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+    session = relationship("SessionModel", back_populates="results")
 
 
 engine = create_engine(

@@ -3,10 +3,42 @@
 from typing import Any
 
 import cv2
-import mediapipe as mp
 import numpy as np
 
 from src.processing.pose_estimator import PoseEstimator
+
+POSE_CONNECTIONS = [
+    (0, 1), (1, 2), (2, 3), (3, 7),
+    (0, 4), (4, 5), (5, 6), (6, 8),
+    (9, 10),
+    (11, 12),
+    (11, 13), (13, 15), (15, 17), (15, 19), (15, 21), (17, 19),
+    (12, 14), (14, 16), (16, 18), (16, 20), (16, 22), (18, 20),
+    (11, 23), (12, 24), (23, 24),
+    (23, 25), (25, 27), (27, 29), (27, 31), (29, 31),
+    (24, 26), (26, 28), (28, 30), (28, 32), (30, 32),
+]
+
+
+def _draw_landmarks_on_frame(
+    frame: np.ndarray,
+    landmarks: list[dict[str, float]],
+    connections: list[tuple[int, int]] = POSE_CONNECTIONS,
+    point_color: tuple[int, int, int] = (0, 255, 0),
+    line_color: tuple[int, int, int] = (255, 255, 255),
+    thickness: int = 1,
+    radius: int = 3,
+) -> None:
+    """Desenha landmarks e conexoes diretamente no frame com OpenCV."""
+    h, w = frame.shape[:2]
+    pts = [(int(lm["x"] * w), int(lm["y"] * h)) for lm in landmarks]
+
+    for start, end in connections:
+        if start < len(pts) and end < len(pts):
+            cv2.line(frame, pts[start], pts[end], line_color, thickness)
+
+    for pt in pts:
+        cv2.circle(frame, pt, radius, point_color, -1)
 
 
 class ProcessingPipeline:
@@ -18,8 +50,6 @@ class ProcessingPipeline:
     def __init__(self, pose_estimator: PoseEstimator | None = None, draw_landmarks: bool = True):
         self._pose = pose_estimator or PoseEstimator()
         self._draw_landmarks = draw_landmarks
-        self._mp_drawing = mp.solutions.drawing_utils
-        self._mp_pose = mp.solutions.pose
 
     def process(
         self, frame_bgr: np.ndarray
@@ -33,12 +63,7 @@ class ProcessingPipeline:
         landmarks = self._pose.get_landmarks_list(result)
 
         out_frame = frame_bgr.copy()
-        if self._draw_landmarks and result.pose_landmarks is not None:
-            self._mp_drawing.draw_landmarks(
-                out_frame,
-                result.pose_landmarks,
-                self._mp_pose.POSE_CONNECTIONS,
-                self._mp_drawing.DrawingSpec(color=(0, 255, 0), thickness=1, circle_radius=1),
-                self._mp_drawing.DrawingSpec(color=(255, 255, 255), thickness=1, circle_radius=1),
-            )
+        if self._draw_landmarks and landmarks is not None:
+            _draw_landmarks_on_frame(out_frame, landmarks)
+
         return out_frame, landmarks
