@@ -9,7 +9,7 @@ from sqlalchemy.exc import OperationalError
 
 from api.config import get_cors_origins
 from api.database import init_db
-from api.routers import health_router, metrics_router, sessions_router
+from api.routers import health_router, live_router, metrics_router, sessions_router
 
 app = FastAPI(title="Runners API", version="0.1.0")
 logger = logging.getLogger(__name__)
@@ -50,5 +50,6 @@ async def database_error_handler(_: Request, exc: OperationalError) -> JSONRespo
 
 
 app.include_router(health_router)
+app.include_router(live_router)
 app.include_router(metrics_router)
 app.include_router(sessions_router)

@@ -1,7 +1,7 @@
 // runners-web/components/layout/sidebar.tsx
 "use client";
 
-import { Activity, BarChart3, GitCompare, LayoutDashboard, Menu, Video } from "lucide-react";
+import { Activity, BarChart3, GitCompare, LayoutDashboard, Menu, Radio, Video } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 
 const nav = [
   { href: "/dashboard", label: "Painel", icon: LayoutDashboard },
+  { href: "/live", label: "Ao Vivo", icon: Radio },
   { href: "/sessions", label: "Sessões", icon: Video },
   { href: "/compare", label: "Comparar treinos", icon: GitCompare },
   { href: "/metrics", label: "Métricas", icon: Activity },

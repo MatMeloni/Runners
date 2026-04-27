@@ -6,9 +6,13 @@ export async function updateSession(request: NextRequest) {
     request,
   });
 
+  const pathname = request.nextUrl.pathname;
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) {
+    if (pathname === "/" || pathname === "") {
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
     return supabaseResponse;
   }
 
