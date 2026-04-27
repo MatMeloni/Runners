@@ -9,8 +9,9 @@ O projeto usa **Supabase** como banco: no painel, **Project Settings → Databas
 | Variável | Exemplo | Uso |
 |----------|---------|-----|
 | `API_PORT` | `8000` | Postman / Swagger: `http://localhost:${API_PORT}` |
-| `API_BASE_URL` | `http://localhost:8000` | Proxy do Vite em dev |
-| `VITE_PORT` | `5173` | Porta do dashboard Vite |
+| `WEB_PORT` | `3000` | Next.js (`runners-web`) no Docker Compose |
+| `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | Base URL da API no browser (dev local e build da imagem `web`) |
+| `CORS_ORIGINS` | `http://localhost:3000` | Origens permitidas pela API (incluir a URL do Next) |
 | `STREAMLIT_PORT` | `8501` | Streamlit no Docker Compose |
 | `DATABASE_URL` | (URI do Supabase) | Obrigatória — conexão ao projeto |
 
@@ -46,5 +47,5 @@ Não commite o `.env` com senha.
 
 ## Deploy (referência)
 
-- **Frontend (ex.: Vercel):** `VITE_API_URL` = URL pública da API (sem `/` no final).
+- **Frontend Next (`runners-web`, ex.: Vercel):** `NEXT_PUBLIC_API_URL` = URL pública da API (sem `/` no final), e `CORS_ORIGINS` na API deve incluir o domínio do site.
 - **API:** `DATABASE_URL` e demais chaves iguais ao modelo do `.env.example`.

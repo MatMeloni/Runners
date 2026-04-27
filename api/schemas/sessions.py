@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Any
+from uuid import UUID
 
 from pydantic import BaseModel
 
@@ -12,6 +13,7 @@ class SessionCreate(BaseModel):
 
 class SessionResponse(BaseModel):
     id: int
+    user_id: UUID | None = None
     name: str | None
     source: str | None
     created_at: datetime

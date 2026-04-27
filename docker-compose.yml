@@ -1,11 +1,25 @@
-# Requer `.env` na raiz com DATABASE_URL do Supabase (veja .env.example).
-# Não há serviço Postgres local: a API e o Streamlit usam o banco na nuvem.
+# Requer `.env` na raiz (veja `.env.example`): DATABASE_URL (Supabase), API_*, CORS_ORIGINS, portas.
+# Não há Postgres local: API e Streamlit usam o banco na nuvem.
+#
+# URLs típicas após `docker compose up --build`:
+#   - Next (UI):  http://localhost:${WEB_PORT:-3000}
+#   - API:        http://localhost:${API_PORT}
+#   - Streamlit:  http://localhost:${STREAMLIT_PORT}
+#
+# O browser chama a API a partir do teu PC. O build do serviço `web` usa NEXT_PUBLIC_API_URL
+# (predefinição: http://localhost:${API_PORT}) — deve coincidir com a porta publicada do `api`.
+#
+# CORS: em `.env`, CORS_ORIGINS deve incluir a origem do Next (ex.: http://localhost:3000
+# ou http://localhost:${WEB_PORT} se mudares WEB_PORT). Várias origens: separadas por vírgula.
 
 services:
   api:
     build: .
     env_file:
       - .env
+    volumes:
+      - ./data:/app/data
+      - ./config:/app/config
     ports:
       - "${API_PORT}:${API_PORT}"
     command:
@@ -35,3 +49,16 @@ services:
     volumes:
       - ./data:/app/data
       - ./config:/app/config
+
+  web:
+    build:
+      context: ./runners-web
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:${API_PORT}}
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      - api

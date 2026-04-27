@@ -1,6 +1,6 @@
 # Runners
 
-Monitoramento em tempo real da **biomecânica de corrida** usando visão computacional. O sistema transforma qualquer câmera em um sensor biomecânico: estimativa de pose (MediaPipe), métricas de angulação, cadência, tempo de contato com o solo e distância, com backend FastAPI, persistência no **Supabase** (PostgreSQL gerenciado) e dashboards em React e Streamlit.
+Monitoramento em tempo real da **biomecânica de corrida** usando visão computacional. O sistema transforma qualquer câmera em um sensor biomecânico: estimativa de pose (MediaPipe), métricas de angulação, cadência, tempo de contato com o solo e distância, com backend FastAPI, persistência no **Supabase** (PostgreSQL gerenciado), interface **Next.js** (`runners-web`) e prototipagem em Streamlit.
 
 ## Configuração obrigatória (`.env`)
 
@@ -14,14 +14,14 @@ Monitoramento em tempo real da **biomecânica de corrida** usando visão computa
    cp .env.example .env
    ```
 
-4. Cole a URI em **`DATABASE_URL`** no `.env` e preencha o restante conforme `.env.example` (API, CORS, Vite, Streamlit).
+4. Cole a URI em **`DATABASE_URL`** no `.env` e preencha o restante conforme `.env.example` (API, CORS, Streamlit, portas).
 
 O Supabase expõe **PostgreSQL** na nuvem; o app usa essa URI com SQLAlchemy (`psycopg2`), sem container Postgres neste repositório.
 
 ## Pré-requisitos
 
 - Python 3.11+
-- Node.js (frontend)
+- Node.js 20+ (para `runners-web` em desenvolvimento local)
 - Projeto Supabase com `DATABASE_URL` válida (rede/DNS precisam alcançar o host da URI)
 
 ## Como rodar (local)
@@ -40,34 +40,49 @@ python scripts/run_api_dev.py
 - API: `http://localhost:<API_PORT>` (ex.: `8000`)
 - Swagger: `http://localhost:<API_PORT>/docs`
 
-### 2. Frontend (Vite)
+### 2. Frontend (Next.js — `runners-web`)
+
+Com a API a correr, noutro terminal:
 
 ```bash
-cd frontend
+cd runners-web
+cp .env.local.example .env.local
+# Edite .env.local: NEXT_PUBLIC_API_URL=http://localhost:<API_PORT>
 npm install
 npm run dev
 ```
 
-O Vite lê o **`.env` na raiz** (`VITE_*` e `API_BASE_URL`). Dashboard: `http://localhost:<VITE_PORT>`.
+Dashboard: `http://localhost:3000` (porta padrão do Next).
 
 ### 3. Streamlit (opcional, sem Docker)
 
+Na raiz do repo. No **Windows** (Python da Microsoft Store ou sem `Scripts` no PATH), o comando `streamlit` pode falhar; use **sempre**:
+
 ```bash
-streamlit run streamlit_app/app.py --server.port <STREAMLIT_PORT>
+python -m streamlit run streamlit_app/app.py --server.port <STREAMLIT_PORT>
 ```
 
-Garanta que o processo herde o `.env` (mesma `DATABASE_URL` do Supabase).
+Ex.: `python -m streamlit run streamlit_app/app.py --server.port 8501`
+
+Com **venv** ativo (`.venv\Scripts\activate`), após `pip install -r requirements.txt`, também pode funcionar `streamlit run ...` se existir `.venv\Scripts\streamlit.exe`.
+
+Garanta que o processo herde o `.env` na raiz (a API carrega-o via código; o Streamlit usa o ambiente / ficheiros do projeto).
 
 ## Como rodar com Docker Compose
 
-O Compose sobe **API** e **Streamlit**; o banco é sempre o do **Supabase** via `DATABASE_URL` no `.env`.
+O Compose sobe **API**, **Streamlit** e **Next.js** (`web`); o banco é sempre o do **Supabase** via `DATABASE_URL` no `.env`.
+
+**Importante para o browser:** o Next chama a API a partir do **navegador** no teu PC. O build da imagem `web` usa `NEXT_PUBLIC_API_URL` apontando para `http://localhost:<API_PORT>` (a mesma porta que publicas para o serviço `api`). Garante que **`CORS_ORIGINS`** no `.env` inclui a origem do Next, por exemplo `http://localhost:3000` (ou o valor de `WEB_PORT` se alterares a porta do `web`).
 
 ```bash
 docker compose up --build
 ```
 
-- API: `http://localhost:<API_PORT>`
-- Streamlit: `http://localhost:<STREAMLIT_PORT>`
+- **UI Next:** `http://localhost:<WEB_PORT>` (predefinição `3000` se `WEB_PORT` não estiver definido)
+- **API:** `http://localhost:<API_PORT>`
+- **Streamlit:** `http://localhost:<STREAMLIT_PORT>`
+
+Para personalizar a URL da API no build do Next (ex.: outro host), define **`NEXT_PUBLIC_API_URL`** no `.env` na raiz; o `docker-compose` passa este valor como build arg para o serviço `web`.
 
 ## Estrutura do projeto
 
@@ -75,7 +90,7 @@ docker compose up --build
 Runners/
 ├── api/
 ├── scripts/run_api_dev.py
-├── frontend/
+├── runners-web/
 ├── src/
 ├── streamlit_app/
 ├── docs/
@@ -96,7 +111,7 @@ A URI **Direct** pode ser só IPv6. Use **Transaction pooler** (porta 6543) no p
 | Camada | Tecnologia |
 |--------|------------|
 | Visão | Python, MediaPipe, OpenCV |
-| Frontend | React (Vite) |
+| Frontend | Next.js 14 (App Router), TypeScript, shadcn/ui |
 | Backend | FastAPI |
 | Dados | Supabase (Postgres) |
 

@@ -1,6 +1,8 @@
 import logging
 import traceback
 from datetime import datetime
+from pathlib import Path
+from uuid import UUID
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session as OrmSession
@@ -15,6 +17,7 @@ def _row_to_response(r: SessionModel) -> SessionResponse:
     """Converte um SessionModel para SessionResponse."""
     return SessionResponse(
         id=r.id,
+        user_id=r.user_id,
         name=r.name,
         source=r.source,
         created_at=r.created_at or datetime.utcnow(),
@@ -25,15 +28,21 @@ def _row_to_response(r: SessionModel) -> SessionResponse:
     )
 
 
-def list_sessions(db: OrmSession) -> list[SessionResponse]:
-    """Lista todas as sessões ordenadas por data de criação."""
-    rows = db.query(SessionModel).order_by(SessionModel.created_at.desc()).all()
+def list_sessions(db: OrmSession, user_id: UUID) -> list[SessionResponse]:
+    """Lista sessões do utilizador ordenadas por data de criação."""
+    rows = (
+        db.query(SessionModel)
+        .filter(SessionModel.user_id == user_id)
+        .order_by(SessionModel.created_at.desc())
+        .all()
+    )
     return [_row_to_response(r) for r in rows]
 
 
-def create_session(db: OrmSession, body: SessionCreate) -> SessionResponse:
+def create_session(db: OrmSession, body: SessionCreate, user_id: UUID) -> SessionResponse:
     """Cria nova sessão com status 'pending'."""
     row = SessionModel(
+        user_id=user_id,
         name=body.name,
         source=body.source,
         metadata_=body.metadata,
@@ -44,12 +53,38 @@ def create_session(db: OrmSession, body: SessionCreate) -> SessionResponse:
     return _row_to_response(row)
 
 
-def get_session(db: OrmSession, session_id: int) -> SessionResponse:
-    """Retorna uma sessão pelo ID ou 404."""
-    row = db.query(SessionModel).filter(SessionModel.id == session_id).first()
+def get_session(db: OrmSession, session_id: int, user_id: UUID) -> SessionResponse:
+    """Retorna uma sessão pelo ID ou 404 se não existir ou não pertencer ao utilizador."""
+    row = (
+        db.query(SessionModel)
+        .filter(SessionModel.id == session_id, SessionModel.user_id == user_id)
+        .first()
+    )
     if not row:
         raise HTTPException(status_code=404, detail="Session not found")
     return _row_to_response(row)
+
+
+def delete_session(db: OrmSession, session_id: int, user_id: UUID) -> None:
+    """Remove sessão, resultados em cascata e ficheiro de vídeo em disco."""
+    row = (
+        db.query(SessionModel)
+        .filter(SessionModel.id == session_id, SessionModel.user_id == user_id)
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if row.video_path:
+        path = Path(row.video_path)
+        if path.is_file():
+            try:
+                path.unlink()
+            except OSError as exc:
+                logger.warning("Não foi possível apagar o vídeo %s: %s", path, exc)
+
+    db.delete(row)
+    db.commit()
 
 
 def run_vision_pipeline(session_id: int, video_path: str) -> None:

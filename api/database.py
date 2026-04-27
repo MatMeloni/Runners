@@ -1,10 +1,12 @@
-"""Conexão ao banco Supabase (PostgreSQL) via DATABASE_URL e modelos ORM."""
+"""Conexão ao PostgreSQL (ex.: Supabase) via DATABASE_URL e modelos ORM."""
 
 import enum
+import logging
 from contextlib import contextmanager
 from datetime import datetime
 from typing import Generator
 
+from fastapi import HTTPException
 from sqlalchemy import (
     Column,
     DateTime,
@@ -16,11 +18,13 @@ from sqlalchemy import (
     Text,
     create_engine,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, declarative_base, relationship, sessionmaker
 
 from api.config import get_database_url
+
+logger = logging.getLogger(__name__)
 
 Base = declarative_base()
 
@@ -36,6 +40,7 @@ class SessionModel(Base):
     __tablename__ = "sessions"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(UUID(as_uuid=True), nullable=True, index=True)
     name = Column(String(255), nullable=True)
     source = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
@@ -71,26 +76,25 @@ engine = create_engine(
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
-def _maybe_raise_dns_pooler_hint(exc: OperationalError) -> None:
+def _log_dns_pooler_hint_if_applicable(exc: OperationalError) -> None:
     """Direct connection db.*.supabase.co é frequentemente só IPv6; redes sem IPv6 falham no DNS."""
     raw = str(getattr(exc, "orig", None) or exc)
     if "could not translate host name" not in raw and "Name or service not known" not in raw:
         return
-    raise RuntimeError(
-        "Falha ao resolver o host do Supabase (DNS). A URI de conexão direta "
-        "(host db.*.supabase.co) costuma expor apenas IPv6; em muitos PCs/rede Windows "
-        "isso gera este erro. No painel Supabase: Database → Connection string → escolha "
-        "'Transaction pooler' (porta 6543) ou 'Session pooler' e cole a nova DATABASE_URL "
-        "no .env. Confira também rede/VPN/firewall."
-    ) from exc
+    logger.warning(
+        "DNS Supabase (host db.*.supabase.co): em muitos PCs/rede Windows falha a resolução. "
+        "No painel: Database → Connection string → 'Transaction pooler' (6543) ou 'Session pooler'. "
+        "Detalhe: %s",
+        raw[:500],
+    )
 
 
 def init_db() -> None:
-    """Cria a tabela sessions se não existir."""
+    """Cria tabelas se não existirem (desenvolvimento). Em produção use migrações SQL explícitas."""
     try:
         Base.metadata.create_all(bind=engine)
     except OperationalError as e:
-        _maybe_raise_dns_pooler_hint(e)
+        _log_dns_pooler_hint_if_applicable(e)
         raise
 
 

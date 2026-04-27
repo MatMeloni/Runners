@@ -1,8 +1,10 @@
 from pathlib import Path
+from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile
 from sqlalchemy.orm import Session as OrmSession
 
+from api.auth import get_current_user_id
 from api.controllers import sessions_controller
 from api.database import AnalysisResult, SessionModel, SessionStatus, get_db_session
 from api.schemas.sessions import (
@@ -19,24 +21,38 @@ router = APIRouter(prefix="/api", tags=["sessions"])
 
 
 @router.get("/sessions", response_model=list[SessionResponse])
-def list_sessions(db: OrmSession = Depends(get_db_session)) -> list[SessionResponse]:
-    return sessions_controller.list_sessions(db)
+def list_sessions(
+    db: OrmSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
+) -> list[SessionResponse]:
+    return sessions_controller.list_sessions(db, user_id)
 
 
 @router.post("/sessions", response_model=SessionResponse)
 def create_session(
     body: SessionCreate,
     db: OrmSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> SessionResponse:
-    return sessions_controller.create_session(db, body)
+    return sessions_controller.create_session(db, body, user_id)
 
 
 @router.get("/sessions/{session_id}", response_model=SessionResponse)
 def get_session(
     session_id: int,
     db: OrmSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> SessionResponse:
-    return sessions_controller.get_session(db, session_id)
+    return sessions_controller.get_session(db, session_id, user_id)
+
+
+@router.delete("/sessions/{session_id}", status_code=204)
+def delete_session(
+    session_id: int,
+    db: OrmSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
+) -> None:
+    sessions_controller.delete_session(db, session_id, user_id)
 
 
 @router.post("/sessions/{session_id}/upload", response_model=UploadResponse)
@@ -45,9 +61,14 @@ def upload_video(
     file: UploadFile,
     background_tasks: BackgroundTasks,
     db: OrmSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> UploadResponse:
     """Aceita upload de vídeo, salva em disco e dispara processamento em background."""
-    row = db.query(SessionModel).filter(SessionModel.id == session_id).first()
+    row = (
+        db.query(SessionModel)
+        .filter(SessionModel.id == session_id, SessionModel.user_id == user_id)
+        .first()
+    )
     if not row:
         raise HTTPException(status_code=404, detail="Session not found")
     if row.status != SessionStatus.pending.value:
@@ -79,9 +100,14 @@ def upload_video(
 def get_session_status(
     session_id: int,
     db: OrmSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> SessionStatusResponse:
     """Retorna o status de processamento da sessão."""
-    row = db.query(SessionModel).filter(SessionModel.id == session_id).first()
+    row = (
+        db.query(SessionModel)
+        .filter(SessionModel.id == session_id, SessionModel.user_id == user_id)
+        .first()
+    )
     if not row:
         raise HTTPException(status_code=404, detail="Session not found")
 
@@ -101,9 +127,14 @@ def get_session_status(
 def get_session_results(
     session_id: int,
     db: OrmSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> list[AnalysisResultResponse]:
     """Retorna todos os resultados de análise de uma sessão."""
-    row = db.query(SessionModel).filter(SessionModel.id == session_id).first()
+    row = (
+        db.query(SessionModel)
+        .filter(SessionModel.id == session_id, SessionModel.user_id == user_id)
+        .first()
+    )
     if not row:
         raise HTTPException(status_code=404, detail="Session not found")
 

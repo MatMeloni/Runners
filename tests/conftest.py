@@ -1,20 +1,24 @@
 """Fixtures e helpers compartilhados para testes."""
 
 import os
+import uuid
+from unittest.mock import MagicMock
+
+import httpx
+import pytest
+from sqlalchemy.orm import Session as OrmSession
 
 os.environ.setdefault("API_HOST", "127.0.0.1")
 os.environ.setdefault("API_PORT", "8000")
 os.environ.setdefault("DATABASE_URL", "postgresql://test:test@localhost:5432/test")
 os.environ.setdefault("CORS_ORIGINS", "*")
+os.environ.setdefault("SUPABASE_JWT_SECRET", "test-secret-for-jwt-encoding-only")
 
-from unittest.mock import MagicMock  # noqa: E402
-
-import httpx  # noqa: E402
-import pytest  # noqa: E402
-from sqlalchemy.orm import Session as OrmSession  # noqa: E402
-
+from api.auth import get_current_user_id  # noqa: E402
 from api.database import get_db_session  # noqa: E402
 from api.main import app  # noqa: E402
+
+TEST_USER_ID = uuid.UUID("00000000-0000-4000-8000-000000000001")
 
 
 def make_landmarks(n: int = 33) -> list[dict[str, float]]:
@@ -34,8 +38,23 @@ def mock_db():
 
 @pytest.fixture()
 async def test_client(mock_db):
-    """Cliente HTTP assíncrono com DB mockada via dependency override."""
+    """Cliente HTTP com DB mockada (rotas protegidas exigem JWT real ou override em outro fixture)."""
     app.dependency_overrides[get_db_session] = lambda: mock_db
+    app.state.db_available = True
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        yield client
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture()
+async def authenticated_client(mock_db):
+    """Cliente HTTP com DB mockada e utilizador autenticado fixo (sem PyJWT nos testes)."""
+    async def _fake_user() -> uuid.UUID:
+        return TEST_USER_ID
+
+    app.dependency_overrides[get_db_session] = lambda: mock_db
+    app.dependency_overrides[get_current_user_id] = _fake_user
     app.state.db_available = True
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:

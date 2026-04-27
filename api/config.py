@@ -48,3 +48,8 @@ def get_cors_origins() -> list[str]:
     raw = _require("CORS_ORIGINS")
     parts = [o.strip() for o in raw.split(",") if o.strip()]
     return parts if parts else ["*"]
+
+
+def get_supabase_jwt_secret() -> str:
+    """Segredo JWT do projeto Supabase (Settings → API → JWT Secret)."""
+    return _require("SUPABASE_JWT_SECRET")
