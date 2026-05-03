@@ -73,6 +73,6 @@ export default function createNextConfig(phase) {
   return {
     reactStrictMode: true,
     env: publicEnv(),
-    ...(isDevServer ? {} : { output: "standalone" }),
+    ...(isDevServer || process.env.VERCEL ? {} : { output: "standalone" }),
   };
 }

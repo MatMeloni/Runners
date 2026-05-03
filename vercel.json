@@ -1,0 +1,6 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "cd runners-web && npm install && npm run build",
+  "outputDirectory": "runners-web/.next",
+  "installCommand": "echo 'dependencies installed in buildCommand'"
+}
