@@ -23,8 +23,8 @@ def _require(name: str) -> str:
     return value.strip()
 
 
-API_HOST: str = _require("API_HOST")
-API_PORT: int = int(_require("API_PORT"))
+API_HOST: str = os.getenv("API_HOST", "0.0.0.0").strip()
+API_PORT: int = int(os.getenv("API_PORT", "8000").strip())
 
 
 def get_database_url() -> str:

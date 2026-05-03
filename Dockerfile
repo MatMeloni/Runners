@@ -22,6 +22,12 @@ COPY src/ ./src/
 COPY api/ ./api/
 COPY config/ ./config/
 COPY streamlit_app/ ./streamlit_app/
+COPY migrations/ ./migrations/
+COPY alembic.ini .
 
-# Porta e host vêm das variáveis de ambiente em runtime (veja .env.example)
-CMD ["sh", "-c", "uvicorn api.main:app --host $API_HOST --port $API_PORT"]
+# Diretórios de runtime criados em tempo de build para evitar erros de permissão
+RUN mkdir -p data/videos data/models
+
+# Railway injeta PORT automaticamente; fallback para API_PORT e depois 8000
+EXPOSE 8000
+CMD ["sh", "-c", "alembic upgrade head && uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-${API_PORT:-8000}}"]
