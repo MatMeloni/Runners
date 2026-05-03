@@ -1,0 +1,22 @@
+# Python backend — deploy separately (Railway / Render / Fly.io)
+# Vercel only hosts the Next.js frontend in runners-web/
+api/
+src/
+streamlit_app/
+migrations/
+tests/
+scripts/
+config/
+data/
+Documentação/
+docs/
+
+requirements.txt
+Dockerfile
+docker-compose.yml
+alembic.ini
+pytest.ini
+*.py
+*.pyc
+__pycache__/
+.venv/
