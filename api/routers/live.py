@@ -13,7 +13,7 @@ import logging
 import threading
 from typing import Any
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -57,11 +57,29 @@ def _run_pose(frame_rgb: Any) -> dict:
         result = estimator.process(frame_rgb)
         landmarks = estimator.get_landmarks_list(result)
     angles = compute_joint_angles(landmarks)
-    return {"detected": landmarks is not None, "angles": angles}
+    return {
+        "detected": landmarks is not None,
+        "angles": angles,
+        "landmarks": landmarks,
+    }
 
 
 @router.websocket("/ws/live")
-async def live_analysis(websocket: WebSocket) -> None:
+async def live_analysis(
+    websocket: WebSocket,
+    token: str | None = Query(default=None),
+) -> None:
+    if not token:
+        await websocket.close(code=4001, reason="Token de autenticação obrigatório")
+        return
+    try:
+        from api.auth import decode_user_id_from_token
+
+        decode_user_id_from_token(token)
+    except Exception:
+        await websocket.close(code=4003, reason="Token inválido ou expirado")
+        return
+
     await websocket.accept()
     logger.info("WebSocket /ws/live conectado de %s", websocket.client)
     loop = asyncio.get_event_loop()

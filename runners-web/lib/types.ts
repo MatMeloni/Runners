@@ -56,6 +56,19 @@ export interface AnalysisAngles {
   trunk?: number;
 }
 
+export interface PoseLandmark {
+  x: number;
+  y: number;
+  z: number;
+  visibility: number;
+}
+
+export interface LivePayload {
+  detected: boolean;
+  angles: AnalysisAngles;
+  landmarks: PoseLandmark[] | null;
+}
+
 export interface AnalysisResult {
   id: number;
   session_id: number;

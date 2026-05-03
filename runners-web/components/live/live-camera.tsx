@@ -1,29 +1,43 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { createSession, uploadVideo } from "@/lib/api";
+import {
+  acquireCameraStream,
+  pickRecorderMimeType,
+  playPreviewOnVideo,
+  startMediaRecorder,
+  stopAllTracks,
+} from "@/lib/webcam-recording";
+import type { LivePayload, PoseLandmark } from "@/lib/types";
 
-interface Angles {
-  knee_left?: number;
-  knee_right?: number;
-  hip_left?: number;
-  hip_right?: number;
-  trunk?: number;
-}
+// MediaPipe Pose connections (landmark index pairs)
+const POSE_CONNECTIONS: [number, number][] = [
+  [9, 10],
+  [11, 12], [11, 23], [12, 24], [23, 24],
+  [11, 13], [13, 15], [15, 17], [15, 19], [15, 21], [17, 19],
+  [12, 14], [14, 16], [16, 18], [16, 20], [16, 22], [18, 20],
+  [23, 25], [25, 27], [27, 29], [27, 31], [29, 31],
+  [24, 26], [26, 28], [28, 30], [28, 32], [30, 32],
+];
 
-interface LivePayload {
-  detected: boolean;
-  angles: Angles;
-}
-
-function buildWsUrl(): string {
+async function buildWsUrl(): Promise<string> {
   const raw = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").trim();
   const base = raw.replace(/\/+$/, "");
-  return base.replace(/^http/, "ws") + "/ws/live";
+  const wsBase = base.replace(/^http/, "ws");
+
+  const { createClient } = await import("@/lib/supabase/client");
+  const supabase = createClient();
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token ?? "";
+
+  return `${wsBase}/ws/live?token=${token}`;
 }
 
 function AngleRow({ label, value }: { label: string; value: number }) {
@@ -35,16 +49,53 @@ function AngleRow({ label, value }: { label: string; value: number }) {
   );
 }
 
+function drawSkeleton(
+  ctx: CanvasRenderingContext2D,
+  landmarks: PoseLandmark[],
+  width: number,
+  height: number,
+) {
+  ctx.clearRect(0, 0, width, height);
+
+  // Draw connections
+  ctx.lineWidth = 2;
+  for (const [a, b] of POSE_CONNECTIONS) {
+    const lmA = landmarks[a];
+    const lmB = landmarks[b];
+    if (!lmA || !lmB) continue;
+    if (lmA.visibility < 0.3 || lmB.visibility < 0.3) continue;
+    ctx.beginPath();
+    ctx.strokeStyle = `rgba(0, 220, 130, ${Math.min(lmA.visibility, lmB.visibility).toFixed(2)})`;
+    ctx.moveTo(lmA.x * width, lmA.y * height);
+    ctx.lineTo(lmB.x * width, lmB.y * height);
+    ctx.stroke();
+  }
+
+  // Draw landmark dots
+  for (const lm of landmarks) {
+    if (lm.visibility < 0.3) continue;
+    ctx.beginPath();
+    ctx.fillStyle = `rgba(255, 255, 255, ${lm.visibility.toFixed(2)})`;
+    ctx.arc(lm.x * width, lm.y * height, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
 export function LiveCamera() {
+  const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const captureCanvasRef = useRef<HTMLCanvasElement>(null);
+  const skeletonCanvasRef = useRef<HTMLCanvasElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const frameTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fpsTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const recorderRef = useRef<{ stop: () => Promise<File> } | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const sendingRef = useRef(false);
   const fpsCountRef = useRef(0);
 
   const [active, setActive] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [metrics, setMetrics] = useState<LivePayload | null>(null);
   const [fps, setFps] = useState(0);
 
@@ -61,31 +112,74 @@ export function LiveCamera() {
       wsRef.current.close();
       wsRef.current = null;
     }
-    const video = videoRef.current;
-    if (video?.srcObject) {
-      (video.srcObject as MediaStream).getTracks().forEach((t) => t.stop());
-      video.srcObject = null;
-    }
+    stopAllTracks(streamRef.current);
+    streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
     sendingRef.current = false;
     setActive(false);
     setMetrics(null);
     setFps(0);
+
+    // Clear skeleton overlay
+    const overlay = skeletonCanvasRef.current;
+    if (overlay) {
+      const ctx = overlay.getContext("2d");
+      ctx?.clearRect(0, 0, overlay.width, overlay.height);
+    }
   }, []);
+
+  const stop = useCallback(async () => {
+    // Grab recorder before stopAll clears everything
+    const recorder = recorderRef.current;
+    recorderRef.current = null;
+    stopAll();
+
+    if (!recorder) return;
+
+    setIsSaving(true);
+    try {
+      const file = await recorder.stop();
+      const timestamp = new Date().toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+      const session = await createSession({
+        name: `Ao Vivo — ${timestamp}`,
+        source: "webcam",
+      });
+      await uploadVideo(session.id, file);
+      toast.success("Sessão salva! Processando análise...", {
+        action: { label: "Ver sessão", onClick: () => router.push(`/sessions/${session.id}`) },
+      });
+      router.push(`/sessions/${session.id}`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Erro ao salvar sessão.";
+      toast.error(msg);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [stopAll, router]);
 
   const start = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
+      const stream = await acquireCameraStream({
+        facingMode: "user",
+        width: { ideal: 640 },
+        height: { ideal: 480 },
       });
+      streamRef.current = stream;
+
       const video = videoRef.current;
       if (!video) {
-        stream.getTracks().forEach((t) => t.stop());
+        stopAllTracks(stream);
         return;
       }
-      video.srcObject = stream;
-      await video.play();
+      await playPreviewOnVideo(stream, video);
 
-      const wsUrl = buildWsUrl();
+      // Start video recorder alongside WebSocket stream
+      const mimeType = pickRecorderMimeType();
+      if (mimeType) {
+        recorderRef.current = startMediaRecorder(stream, mimeType);
+      }
+
+      const wsUrl = await buildWsUrl();
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
@@ -94,7 +188,7 @@ export function LiveCamera() {
 
         frameTimerRef.current = setInterval(() => {
           if (sendingRef.current || ws.readyState !== WebSocket.OPEN) return;
-          const canvas = canvasRef.current;
+          const canvas = captureCanvasRef.current;
           const vid = videoRef.current;
           if (!canvas || !vid || vid.readyState < 2) return;
 
@@ -122,6 +216,20 @@ export function LiveCamera() {
         try {
           const payload = JSON.parse(event.data as string) as LivePayload;
           setMetrics(payload);
+
+          // Draw skeleton on overlay canvas
+          if (payload.landmarks && skeletonCanvasRef.current && videoRef.current) {
+            const vid = videoRef.current;
+            const overlay = skeletonCanvasRef.current;
+            overlay.width = vid.clientWidth;
+            overlay.height = vid.clientHeight;
+            const ctx = overlay.getContext("2d");
+            if (ctx) drawSkeleton(ctx, payload.landmarks, overlay.width, overlay.height);
+          } else if (!payload.landmarks && skeletonCanvasRef.current) {
+            const overlay = skeletonCanvasRef.current;
+            const ctx = overlay.getContext("2d");
+            ctx?.clearRect(0, 0, overlay.width, overlay.height);
+          }
         } catch {
           // ignore malformed frames
         }
@@ -135,12 +243,17 @@ export function LiveCamera() {
           /* ignore */
         }
         toast.error(
-          `Sem ligação ao tempo real (${host}). Na raiz do repo: python scripts/run_api_dev.py — e confira NEXT_PUBLIC_API_URL no Next.`,
+          `Sem ligação ao tempo real (${host}). Verifique python scripts/run_api_dev.py e NEXT_PUBLIC_API_URL.`,
         );
         stopAll();
       };
 
-      ws.onclose = () => setActive(false);
+      ws.onclose = (ev) => {
+        setActive(false);
+        if (ev.code === 4001 || ev.code === 4003) {
+          toast.error("Sessão expirada. Faça login novamente.");
+        }
+      };
     } catch (e) {
       const name = e instanceof Error ? (e as { name?: string }).name ?? "" : "";
       if (name === "NotAllowedError" || name === "PermissionDeniedError") {
@@ -174,7 +287,16 @@ export function LiveCamera() {
           autoPlay
           aria-label="Feed ao vivo da câmera"
         />
-        <canvas ref={canvasRef} className="hidden" aria-hidden />
+
+        {/* Skeleton overlay canvas — drawn on top of video */}
+        <canvas
+          ref={skeletonCanvasRef}
+          className="pointer-events-none absolute inset-0 h-full w-full"
+          aria-hidden
+        />
+
+        {/* Hidden canvas used only to capture frames for WebSocket */}
+        <canvas ref={captureCanvasRef} className="hidden" aria-hidden />
 
         {/* Top-left status */}
         <div className="absolute left-3 top-3 flex items-center gap-2">
@@ -218,7 +340,7 @@ export function LiveCamera() {
         )}
 
         {/* Idle placeholder */}
-        {!active && (
+        {!active && !isSaving && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background/80">
             <span className="text-sm text-muted-foreground">Câmera inativa</span>
             <span className="text-xs text-muted-foreground/60">
@@ -226,20 +348,28 @@ export function LiveCamera() {
             </span>
           </div>
         )}
+
+        {/* Saving overlay */}
+        {isSaving && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background/90">
+            <span className="text-sm font-medium">Salvando sessão...</span>
+            <span className="text-xs text-muted-foreground">Aguarde o upload do vídeo</span>
+          </div>
+        )}
       </div>
 
       {/* Controls */}
       <div className="flex flex-wrap gap-3">
-        {!active ? (
+        {!active && !isSaving ? (
           <Button onClick={() => void start()}>Iniciar análise ao vivo</Button>
-        ) : (
-          <Button variant="destructive" onClick={stopAll}>
-            Parar
+        ) : active ? (
+          <Button variant="destructive" onClick={() => void stop()} disabled={isSaving}>
+            Parar e salvar sessão
           </Button>
-        )}
+        ) : null}
       </div>
 
-      {/* Metrics cards below (fallback if overlay obscured) */}
+      {/* Metrics cards below */}
       {hasAngles && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {(
