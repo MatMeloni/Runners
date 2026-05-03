@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -11,7 +10,6 @@ import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 
 export default function RegisterPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -26,7 +24,7 @@ export default function RegisterPage() {
     try {
       const supabase = createClient();
       const origin = window.location.origin;
-      const { error: signErr } = await supabase.auth.signUp({
+      const { data, error: signErr } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -37,8 +35,11 @@ export default function RegisterPage() {
         setError(signErr.message);
         return;
       }
-      setInfo("Se a confirmação por e-mail estiver ativa no Supabase, verifique a sua caixa de entrada.");
-      router.refresh();
+      if (data.session) {
+        window.location.href = "/dashboard";
+        return;
+      }
+      setInfo("Verifique a sua caixa de entrada e clique no link de confirmação para ativar a conta.");
     } finally {
       setLoading(false);
     }
