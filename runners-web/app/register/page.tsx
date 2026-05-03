@@ -40,6 +40,8 @@ export default function RegisterPage() {
         return;
       }
       setInfo("Verifique a sua caixa de entrada e clique no link de confirmação para ativar a conta.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro inesperado. Verifique as variáveis de ambiente do Supabase.");
     } finally {
       setLoading(false);
     }

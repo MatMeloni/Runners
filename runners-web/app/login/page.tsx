@@ -32,6 +32,8 @@ function LoginForm() {
         return;
       }
       window.location.href = next;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro inesperado. Verifique as variáveis de ambiente do Supabase.");
     } finally {
       setLoading(false);
     }
