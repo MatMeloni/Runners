@@ -1,16 +1,16 @@
-# Requer `.env` na raiz (veja `.env.example`): DATABASE_URL (Supabase), API_*, CORS_ORIGINS, portas.
-# Não há Postgres local: API e Streamlit usam o banco na nuvem.
+# Runners — stack completa local via Docker Compose
 #
-# URLs típicas após `docker compose up --build`:
-#   - Next (UI):  http://localhost:${WEB_PORT:-3000}
-#   - API:        http://localhost:${API_PORT}
-#   - Streamlit:  http://localhost:${STREAMLIT_PORT}
+# Pré-requisito: arquivo .env na raiz (copie .env.example e preencha os valores).
+# Variáveis obrigatórias: DATABASE_URL, SUPABASE_JWT_SECRET,
+#   NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY
 #
-# O browser chama a API a partir do teu PC. O build do serviço `web` usa NEXT_PUBLIC_API_URL
-# (predefinição: http://localhost:${API_PORT}) — deve coincidir com a porta publicada do `api`.
+# Portas padrão (sobrescrevíveis no .env):
+#   API  → http://localhost:8000
+#   Web  → http://localhost:3000
 #
-# CORS: em `.env`, CORS_ORIGINS deve incluir a origem do Next (ex.: http://localhost:3000
-# ou http://localhost:${WEB_PORT} se mudares WEB_PORT). Várias origens: separadas por vírgula.
+# Iniciar:   docker compose up --build
+# Só API:    docker compose up --build api
+# Parar:     docker compose down
 
 services:
   api:
@@ -21,44 +21,58 @@ services:
       - ./data:/app/data
       - ./config:/app/config
     ports:
-      - "${API_PORT}:${API_PORT}"
+      - "${API_PORT:-8000}:${API_PORT:-8000}"
+    # alembic cria/atualiza tabelas no Supabase antes de subir o servidor
     command:
-      [
-        "uvicorn",
-        "api.main:app",
-        "--host",
-        "${API_HOST}",
-        "--port",
-        "${API_PORT}",
-      ]
-
-  streamlit:
-    build: .
-    env_file:
-      - .env
-    ports:
-      - "${STREAMLIT_PORT}:${STREAMLIT_PORT}"
-    command:
-      [
-        "streamlit",
-        "run",
-        "streamlit_app/app.py",
-        "--server.port=${STREAMLIT_PORT}",
-        "--server.address=0.0.0.0",
-      ]
-    volumes:
-      - ./data:/app/data
-      - ./config:/app/config
+      - sh
+      - -c
+      - >
+        alembic upgrade head &&
+        uvicorn api.main:app
+        --host 0.0.0.0
+        --port ${API_PORT:-8000}
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://localhost:${API_PORT:-8000}/health')"
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
 
   web:
     build:
       context: ./runners-web
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:${API_PORT}}
+        # NEXT_PUBLIC_* são embutidos no bundle em tempo de build.
+        # O browser acessa a API via localhost, não pelo nome do container.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:${API_PORT:-8000}}
         NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-}
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
     ports:
       - "${WEB_PORT:-3000}:3000"
     depends_on:
-      - api
+      api:
+        condition: service_healthy
+
+  streamlit:
+    build: .
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./config:/app/config
+    ports:
+      - "${STREAMLIT_PORT:-8501}:${STREAMLIT_PORT:-8501}"
+    command:
+      - sh
+      - -c
+      - >
+        streamlit run streamlit_app/app.py
+        --server.port ${STREAMLIT_PORT:-8501}
+        --server.address 0.0.0.0
+    profiles:
+      - streamlit
