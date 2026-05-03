@@ -28,6 +28,6 @@ COPY alembic.ini .
 # Diretórios de runtime criados em tempo de build para evitar erros de permissão
 RUN mkdir -p data/videos data/models
 
-# Railway injeta PORT automaticamente; fallback para API_PORT e depois 8000
+# Provedores PaaS (Render/Railway) injetam PORT automaticamente.
 EXPOSE 8000
-CMD ["sh", "-c", "alembic upgrade head && uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-${API_PORT:-8000}}"]
+CMD ["sh", "-c", "uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-${API_PORT:-8000}}"]
