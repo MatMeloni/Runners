@@ -84,6 +84,18 @@ docker compose up --build
 
 Para personalizar a URL da API no build do Next (ex.: outro host), define **`NEXT_PUBLIC_API_URL`** no `.env` na raiz; o `docker-compose` passa este valor como build arg para o serviço `web`.
 
+### Análise ao vivo (Next `/live`) e MediaPipe na imagem Docker
+
+A imagem da API inclui **OpenGL ES** (`libgles2`, `libegl1`) para o MediaPipe Tasks carregar `libGLESv2.so.2` dentro do container. Sem isso, o WebSocket `/ws/live` aceita ligações mas rebenta ao inicializar a pose. Depois de alterar o `Dockerfile`, faz **`docker compose build api`** (ou `up --build`) antes de testar de novo.
+
+### Streamlit e webcam dentro do Docker
+
+O Streamlit no Compose **não tem acesso à webcam do PC** por defeito: o `OpenCV` dentro do container não vê `/dev/video0` do host. No **Docker Desktop (Windows)** é o comportamento esperado; usa o **Next.js “Ao Vivo”** (câmera no browser + API no Docker) ou o modo **“Arquivo”** no Streamlit. Em **Linux**, podes experimentar mapear o dispositivo no `docker-compose.yml` (ex. `devices: ["/dev/video0:/dev/video0"]`) se precisares mesmo de webcam no container.
+
+### `DATABASE_URL` e DNS (Windows / rede)
+
+Se no startup da API aparecer `could not translate host name "db.<projeto>.supabase.co"`, a string **Direct** do painel pode não resolver na tua rede. No Supabase: **Database → Connection string → Transaction pooler** (porta **6543**, host em `*.pooler.supabase.com`) ou **Session pooler**, e cola essa URI em **`DATABASE_URL`**. Isto é independente do MediaPipe; sem ligação ao Postgres a API fica em modo degradado.
+
 ## Estrutura do projeto
 
 ```
@@ -104,7 +116,7 @@ Postman e detalhes da URI: `docs/postman-e-supabase.md`.
 
 ### Se a API não conecta ao Supabase (`could not translate host name`)
 
-A URI **Direct** pode ser só IPv6. Use **Transaction pooler** (porta 6543) no painel do Supabase e atualize `DATABASE_URL`. Ver `docs/postman-e-supabase.md`.
+Ver a subsecção **`DATABASE_URL` e DNS** acima (pooler em vez da URI Direct). Mais detalhe em `docs/postman-e-supabase.md`.
 
 ## Stack
 

@@ -1,34 +1,57 @@
-"""WebSocket endpoint para análise de pose em tempo real via câmera."""
+"""WebSocket endpoint para análise de pose em tempo real via câmera.
+
+Importações pesadas (OpenCV, MediaPipe) são adiadas: o módulo carrega rápido para o
+worker aceitar o WebSocket; cv2/numpy só no primeiro frame com imagem; MediaPipe na
+primeira chamada a _run_pose.
+"""
+
+from __future__ import annotations
 
 import asyncio
 import base64
 import logging
 import threading
+from typing import Any
 
-import cv2
-import numpy as np
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-
-from src.analysis.angles import compute_joint_angles
-from src.processing.pose_estimator import PoseEstimator
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-_estimator: PoseEstimator | None = None
+_estimator: Any = None
 _estimator_lock = threading.Lock()
 
+_cv2: Any = None
+_np: Any = None
+_cv_deps_lock = threading.Lock()
 
-def _get_estimator() -> PoseEstimator:
+
+def _decode_deps() -> tuple[Any, Any]:
+    """Carrega OpenCV e NumPy na primeira frame real (após o handshake WebSocket)."""
+    global _cv2, _np
+    with _cv_deps_lock:
+        if _cv2 is None:
+            import cv2
+            import numpy as np
+
+            _cv2, _np = cv2, np
+    return _cv2, _np
+
+
+def _get_estimator() -> Any:
     global _estimator
     with _estimator_lock:
         if _estimator is None:
+            from src.processing.pose_estimator import PoseEstimator
+
             logger.info("Inicializando PoseEstimator para análise ao vivo...")
             _estimator = PoseEstimator(running_mode="image")
     return _estimator
 
 
-def _run_pose(frame_rgb: np.ndarray) -> dict:
+def _run_pose(frame_rgb: Any) -> dict:
+    from src.analysis.angles import compute_joint_angles
+
     estimator = _get_estimator()
     with _estimator_lock:
         result = estimator.process(frame_rgb)
@@ -50,6 +73,7 @@ async def live_analysis(websocket: WebSocket) -> None:
                 await websocket.send_json({"detected": False, "angles": {}})
                 continue
 
+            cv2, np = _decode_deps()
             img_bytes = base64.b64decode(frame_b64)
             arr = np.frombuffer(img_bytes, dtype=np.uint8)
             frame_bgr = cv2.imdecode(arr, cv2.IMREAD_COLOR)

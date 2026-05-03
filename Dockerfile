@@ -2,8 +2,11 @@
 FROM python:3.11-slim
 
 # libgl1-mesa-glx foi removido no Debian 12+; libgl1 substitui para OpenCV / visão.
+# libgles2 + libegl1: MediaPipe Tasks carrega libGLESv2.so.2 no Linux (evita erro no /ws/live).
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1 \
+    libgles2 \
+    libegl1 \
     libglib2.0-0 \
     libsm6 \
     libxext6 \

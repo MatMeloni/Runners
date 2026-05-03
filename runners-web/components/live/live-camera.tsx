@@ -21,8 +21,9 @@ interface LivePayload {
 }
 
 function buildWsUrl(): string {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-  return apiUrl.replace(/^http/, "ws") + "/ws/live";
+  const raw = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").trim();
+  const base = raw.replace(/\/+$/, "");
+  return base.replace(/^http/, "ws") + "/ws/live";
 }
 
 function AngleRow({ label, value }: { label: string; value: number }) {
@@ -84,7 +85,8 @@ export function LiveCamera() {
       video.srcObject = stream;
       await video.play();
 
-      const ws = new WebSocket(buildWsUrl());
+      const wsUrl = buildWsUrl();
+      const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {
@@ -126,7 +128,15 @@ export function LiveCamera() {
       };
 
       ws.onerror = () => {
-        toast.error("Não foi possível conectar ao backend. Verifique se a API está rodando.");
+        let host = "API";
+        try {
+          host = new URL(wsUrl).host;
+        } catch {
+          /* ignore */
+        }
+        toast.error(
+          `Sem ligação ao tempo real (${host}). Na raiz do repo: python scripts/run_api_dev.py — e confira NEXT_PUBLIC_API_URL no Next.`,
+        );
         stopAll();
       };
 
