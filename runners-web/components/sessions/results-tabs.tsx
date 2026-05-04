@@ -161,21 +161,50 @@ export function ResultsTabs({ sessionId }: { sessionId: number }) {
         {session.status === "done" ? (
           <>
             <Separator />
+            {/* Bloco de diagnóstico automático */}
+            {(() => {
+              const cadenceOk = summary.cadence !== null && summary.cadence >= 160 && summary.cadence <= 190;
+              const gctMs = summary.gct !== null ? summary.gct * 1000 : null;
+              const gctOk = gctMs !== null && gctMs < 250;
+              const hasSummary = summary.cadence !== null || gctMs !== null;
+              if (!hasSummary) return null;
+              const allOk = cadenceOk && gctOk;
+              return (
+                <Alert variant={allOk ? "default" : "destructive"}>
+                  <AlertTitle>Diagnóstico da corrida</AlertTitle>
+                  <AlertDescription className="space-y-1">
+                    {summary.cadence !== null && (
+                      <p>
+                        Cadência {cadenceOk ? "dentro do ideal ✓" : "fora do ideal ⚠"} ({summary.cadence.toFixed(1)} spm — referência: 160–190).
+                      </p>
+                    )}
+                    {gctMs !== null && (
+                      <p>
+                        Tempo de contato com o solo {gctOk ? "eficiente ✓" : "acima do ideal ⚠"} ({gctMs.toFixed(0)} ms — referência: abaixo de 250 ms).
+                      </p>
+                    )}
+                  </AlertDescription>
+                </Alert>
+              );
+            })()}
             <div className="grid gap-4 md:grid-cols-3">
               <LiveMetricCard
                 label="Cadência média"
                 value={summary.cadence === null ? "—" : summary.cadence.toFixed(1)}
                 unit="spm"
+                footer="Ideal: 160–190 spm"
               />
               <LiveMetricCard
                 label="GCT médio"
                 value={summary.gct === null ? "—" : `${(summary.gct * 1000).toFixed(0)}`}
                 unit="ms"
+                footer="Ideal: abaixo de 250 ms"
               />
               <LiveMetricCard
                 label="Distância média"
                 value={summary.distance === null ? "—" : summary.distance.toFixed(2)}
                 unit="m"
+                footer="Estimativa por passadas"
               />
             </div>
           </>

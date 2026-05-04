@@ -16,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useDeleteSession } from "@/lib/queries";
+import { useDeleteSession, useSession } from "@/lib/queries";
 
 export default function SessionDetailPage() {
   const params = useParams<{ id: string }>();
@@ -24,6 +24,7 @@ export default function SessionDetailPage() {
   const id = Number(params.id);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const del = useDeleteSession();
+  const sessionQ = useSession(id);
 
   if (!Number.isFinite(id) || id <= 0) {
     return (
@@ -52,10 +53,15 @@ export default function SessionDetailPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Sessão #{id}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {sessionQ.data?.name ?? `Sessão #${id}`}
+          </h1>
           <p className="text-sm text-muted-foreground">Detalhe, gráficos e exportação de dados.</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline">
+            <Link href="/compare">Comparar com outro treino</Link>
+          </Button>
           <Button variant="destructive" type="button" onClick={() => setConfirmOpen(true)}>
             Eliminar
           </Button>

@@ -6,6 +6,7 @@ import {
   Legend,
   Line,
   LineChart,
+  ReferenceArea,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -85,8 +86,25 @@ export function AnglesLineChart({ results }: { results: AnalysisResult[] }) {
             />
             <Tooltip content={<CustomTooltip />} />
             <Legend />
-            <ReferenceLine y={90} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" />
-            <ReferenceLine y={180} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" />
+            {/* Zona ideal do ângulo do joelho no apoio */}
+            <ReferenceArea
+              y1={150}
+              y2={175}
+              fill="rgba(34,197,94,0.10)"
+              label={{ value: "zona ideal joelho", position: "insideTopRight", fontSize: 10, fill: "#16a34a" }}
+            />
+            <ReferenceLine
+              y={90}
+              stroke="hsl(var(--muted-foreground))"
+              strokeDasharray="4 4"
+              label={{ value: "90°", position: "right", fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+            />
+            <ReferenceLine
+              y={180}
+              stroke="hsl(var(--muted-foreground))"
+              strokeDasharray="4 4"
+              label={{ value: "180°", position: "right", fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+            />
             {(Object.keys(COLORS) as JointKey[]).map((key) => (
               <Line
                 key={key}
