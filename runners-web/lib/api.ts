@@ -29,6 +29,9 @@ export class ApiError extends Error {
   }
 }
 
+// Bypasses ngrok free-tier browser interstitial for all fetch calls
+const NGROK_HEADERS = { "ngrok-skip-browser-warning": "true" };
+
 function getBaseUrl(): string {
   const raw = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").trim();
   return raw.replace(/\/+$/, "");
@@ -138,7 +141,7 @@ function normalizeAnalysisResult(raw: unknown): AnalysisResult {
 
 export async function getHealth(): Promise<HealthResponse> {
   const url = `${getBaseUrl()}/health`;
-  const res = await fetch(url, { cache: "no-store" });
+  const res = await fetch(url, { cache: "no-store", headers: { ...NGROK_HEADERS } });
   if (!res.ok) throw new ApiError(await res.text(), res.status);
   return parseJson<HealthResponse>(res);
 }
@@ -146,7 +149,7 @@ export async function getHealth(): Promise<HealthResponse> {
 export async function getMetrics(): Promise<MetricsResponse> {
   const url = `${getBaseUrl()}/api/metrics`;
   const auth = await apiAuthHeaders();
-  const res = await fetch(url, { cache: "no-store", headers: { ...auth } });
+  const res = await fetch(url, { cache: "no-store", headers: { ...NGROK_HEADERS, ...auth } });
   if (!res.ok) throw new ApiError(await res.text(), res.status);
   return parseJson<MetricsResponse>(res);
 }
@@ -154,7 +157,7 @@ export async function getMetrics(): Promise<MetricsResponse> {
 export async function getSessions(): Promise<Session[]> {
   const url = `${getBaseUrl()}/api/sessions`;
   const auth = await apiAuthHeaders();
-  const res = await fetch(url, { cache: "no-store", headers: { ...auth } });
+  const res = await fetch(url, { cache: "no-store", headers: { ...NGROK_HEADERS, ...auth } });
   if (!res.ok) throw new ApiError(await res.text(), res.status);
   const data = await parseJson<unknown>(res);
   if (!Array.isArray(data)) throw new ApiError("Expected sessions array", 500);
@@ -164,7 +167,7 @@ export async function getSessions(): Promise<Session[]> {
 export async function getSession(id: number): Promise<Session> {
   const url = `${getBaseUrl()}/api/sessions/${id}`;
   const auth = await apiAuthHeaders();
-  const res = await fetch(url, { cache: "no-store", headers: { ...auth } });
+  const res = await fetch(url, { cache: "no-store", headers: { ...NGROK_HEADERS, ...auth } });
   if (!res.ok) throw new ApiError(await res.text(), res.status);
   const data = await parseJson<unknown>(res);
   return normalizeSession(data);
@@ -175,7 +178,7 @@ export async function createSession(body: SessionCreateBody): Promise<Session> {
   const auth = await apiAuthHeaders();
   const res = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...auth },
+    headers: { "Content-Type": "application/json", ...NGROK_HEADERS, ...auth },
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new ApiError(await res.text(), res.status);
@@ -188,7 +191,7 @@ export async function uploadVideo(sessionId: number, file: File): Promise<Upload
   const form = new FormData();
   form.append("file", file);
   const auth = await apiAuthHeaders();
-  const res = await fetch(url, { method: "POST", headers: { ...auth }, body: form });
+  const res = await fetch(url, { method: "POST", headers: { ...NGROK_HEADERS, ...auth }, body: form });
   if (!res.ok) throw new ApiError(await res.text(), res.status);
   return parseJson<UploadResponse>(res);
 }
@@ -196,14 +199,14 @@ export async function uploadVideo(sessionId: number, file: File): Promise<Upload
 export async function deleteSession(sessionId: number): Promise<void> {
   const url = `${getBaseUrl()}/api/sessions/${sessionId}`;
   const auth = await apiAuthHeaders();
-  const res = await fetch(url, { method: "DELETE", headers: { ...auth } });
+  const res = await fetch(url, { method: "DELETE", headers: { ...NGROK_HEADERS, ...auth } });
   if (!res.ok) throw new ApiError(await res.text(), res.status);
 }
 
 export async function getSessionStatus(sessionId: number): Promise<SessionStatusResponse> {
   const url = `${getBaseUrl()}/api/sessions/${sessionId}/status`;
   const auth = await apiAuthHeaders();
-  const res = await fetch(url, { cache: "no-store", headers: { ...auth } });
+  const res = await fetch(url, { cache: "no-store", headers: { ...NGROK_HEADERS, ...auth } });
   if (!res.ok) throw new ApiError(await res.text(), res.status);
   const raw = await parseJson<unknown>(res);
   if (typeof raw !== "object" || raw === null) throw new ApiError("Invalid status payload", 500);
@@ -221,7 +224,7 @@ export async function getSessionStatus(sessionId: number): Promise<SessionStatus
 export async function getSessionResults(sessionId: number): Promise<AnalysisResult[]> {
   const url = `${getBaseUrl()}/api/sessions/${sessionId}/results`;
   const auth = await apiAuthHeaders();
-  const res = await fetch(url, { cache: "no-store", headers: { ...auth } });
+  const res = await fetch(url, { cache: "no-store", headers: { ...NGROK_HEADERS, ...auth } });
   if (!res.ok) throw new ApiError(await res.text(), res.status);
   const data = await parseJson<unknown>(res);
   if (!Array.isArray(data)) throw new ApiError("Expected results array", 500);

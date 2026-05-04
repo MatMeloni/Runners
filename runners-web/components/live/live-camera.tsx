@@ -27,9 +27,13 @@ const POSE_CONNECTIONS: [number, number][] = [
   [24, 26], [26, 28], [28, 30], [28, 32], [30, 32],
 ];
 
-async function buildWsUrl(): Promise<string> {
+function getHttpBase(): string {
   const raw = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").trim();
-  const base = raw.replace(/\/+$/, "");
+  return raw.replace(/\/+$/, "");
+}
+
+async function buildWsUrl(): Promise<string> {
+  const base = getHttpBase();
   const wsBase = base.replace(/^http/, "ws");
 
   const { createClient } = await import("@/lib/supabase/client");
@@ -37,7 +41,9 @@ async function buildWsUrl(): Promise<string> {
   const { data: { session } } = await supabase.auth.getSession();
   const token = session?.access_token ?? "";
 
-  return `${wsBase}/ws/live?token=${token}`;
+  // ngrok-skip-browser-warning as query param bypasses the ngrok free-tier interstitial
+  // for WebSocket connections (which cannot send custom headers via browser API)
+  return `${wsBase}/ws/live?token=${token}&ngrok-skip-browser-warning=true`;
 }
 
 function AngleRow({ label, value }: { label: string; value: number }) {
@@ -180,6 +186,17 @@ export function LiveCamera() {
       }
 
       const wsUrl = await buildWsUrl();
+
+      // Pre-flight HTTP request to activate the ngrok session in this browser,
+      // which allows the subsequent WebSocket connection to bypass the interstitial.
+      try {
+        await fetch(`${getHttpBase()}/health`, {
+          headers: { "ngrok-skip-browser-warning": "true" },
+        });
+      } catch {
+        // ignore — proceed with WebSocket even if health check fails
+      }
+
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
@@ -236,14 +253,8 @@ export function LiveCamera() {
       };
 
       ws.onerror = () => {
-        let host = "API";
-        try {
-          host = new URL(wsUrl).host;
-        } catch {
-          /* ignore */
-        }
         toast.error(
-          `Sem ligação ao tempo real (${host}). Verifique python scripts/run_api_dev.py e NEXT_PUBLIC_API_URL.`,
+          "Não foi possível conectar à API em tempo real. Verifique se o ngrok está rodando e se NEXT_PUBLIC_API_URL está correto no Vercel.",
         );
         stopAll();
       };
