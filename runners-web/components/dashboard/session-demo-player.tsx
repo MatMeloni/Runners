@@ -19,13 +19,40 @@ const POSE_CONNECTIONS: [number, number][] = [
   [24, 26], [26, 28], [28, 30], [28, 32], [30, 32],
 ];
 
+// Calculates the actual rendered video rect inside a container using object-contain rules.
+function getVideoRenderRect(
+  containerW: number,
+  containerH: number,
+  videoW: number,
+  videoH: number,
+): { x: number; y: number; w: number; h: number } {
+  if (videoW === 0 || videoH === 0) return { x: 0, y: 0, w: containerW, h: containerH };
+  const containerAspect = containerW / containerH;
+  const videoAspect = videoW / videoH;
+  let w: number;
+  let h: number;
+  if (videoAspect < containerAspect) {
+    // Portrait video in landscape container — pillar-boxed (black bars on sides)
+    h = containerH;
+    w = h * videoAspect;
+  } else {
+    // Landscape video in portrait container — letter-boxed (black bars top/bottom)
+    w = containerW;
+    h = w / videoAspect;
+  }
+  return { x: (containerW - w) / 2, y: (containerH - h) / 2, w, h };
+}
+
 function drawSkeleton(
   ctx: CanvasRenderingContext2D,
   landmarks: PoseLandmark[],
-  width: number,
-  height: number,
+  containerW: number,
+  containerH: number,
+  videoW: number,
+  videoH: number,
 ) {
-  ctx.clearRect(0, 0, width, height);
+  ctx.clearRect(0, 0, containerW, containerH);
+  const { x: ox, y: oy, w, h } = getVideoRenderRect(containerW, containerH, videoW, videoH);
 
   ctx.lineWidth = 2;
   for (const [a, b] of POSE_CONNECTIONS) {
@@ -35,8 +62,8 @@ function drawSkeleton(
     if (lmA.visibility < 0.3 || lmB.visibility < 0.3) continue;
     ctx.beginPath();
     ctx.strokeStyle = `rgba(0, 220, 130, ${Math.min(lmA.visibility, lmB.visibility).toFixed(2)})`;
-    ctx.moveTo(lmA.x * width, lmA.y * height);
-    ctx.lineTo(lmB.x * width, lmB.y * height);
+    ctx.moveTo(lmA.x * w + ox, lmA.y * h + oy);
+    ctx.lineTo(lmB.x * w + ox, lmB.y * h + oy);
     ctx.stroke();
   }
 
@@ -44,7 +71,7 @@ function drawSkeleton(
     if (lm.visibility < 0.3) continue;
     ctx.beginPath();
     ctx.fillStyle = `rgba(255, 255, 255, ${lm.visibility.toFixed(2)})`;
-    ctx.arc(lm.x * width, lm.y * height, 3, 0, Math.PI * 2);
+    ctx.arc(lm.x * w + ox, lm.y * h + oy, 3, 0, Math.PI * 2);
     ctx.fill();
   }
 }
@@ -149,14 +176,22 @@ export function SessionDemoPlayer() {
 
     // Draw skeleton if this frame has stored landmarks
     const overlay = skeletonCanvasRef.current;
-    if (overlay && frame.landmarks && frame.landmarks.length > 0) {
+    if (overlay) {
       overlay.width = vid.clientWidth;
       overlay.height = vid.clientHeight;
       const ctx = overlay.getContext("2d");
-      if (ctx) drawSkeleton(ctx, frame.landmarks, overlay.width, overlay.height);
-    } else if (overlay && (!frame.landmarks || frame.landmarks.length === 0)) {
-      const ctx = overlay.getContext("2d");
-      ctx?.clearRect(0, 0, overlay.width, overlay.height);
+      if (ctx && frame.landmarks && frame.landmarks.length > 0) {
+        drawSkeleton(
+          ctx,
+          frame.landmarks,
+          overlay.width,
+          overlay.height,
+          vid.videoWidth,
+          vid.videoHeight,
+        );
+      } else if (ctx) {
+        ctx.clearRect(0, 0, overlay.width, overlay.height);
+      }
     }
   }
 
