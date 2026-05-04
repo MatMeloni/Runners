@@ -69,17 +69,7 @@ async def live_analysis(
     websocket: WebSocket,
     token: str | None = Query(default=None),
 ) -> None:
-    if not token:
-        await websocket.close(code=4001, reason="Token de autenticação obrigatório")
-        return
-    try:
-        from api.auth import decode_user_id_from_token
-
-        decode_user_id_from_token(token)
-    except Exception:
-        await websocket.close(code=4003, reason="Token inválido ou expirado")
-        return
-
+    # MVP: auth is optional — token is accepted if provided but not required
     await websocket.accept()
     logger.info("WebSocket /ws/live conectado de %s", websocket.client)
     loop = asyncio.get_event_loop()

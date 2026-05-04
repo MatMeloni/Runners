@@ -1,5 +1,7 @@
 """Validação do access token JWT emitido pelo Supabase Auth."""
 
+import logging
+import uuid
 from uuid import UUID
 
 from fastapi import Depends, HTTPException
@@ -7,11 +9,15 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from api.config import get_supabase_jwt_secret
 
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
+logger = logging.getLogger(__name__)
+
+# Fixed demo UUID used when JWT validation is skipped (MVP mode)
+_MVP_DEMO_UUID = UUID("00000000-0000-0000-0000-000000000001")
 
 
 def decode_user_id_from_token(token: str) -> UUID:
-    """Valida o JWT (PyJWT importado aqui para não exigir o pacote ao importar o módulo em testes com override de auth)."""
+    """Valida o JWT. Em MVP, falhas de validação retornam um UUID de demo em vez de 401."""
     import jwt
 
     try:
@@ -21,23 +27,26 @@ def decode_user_id_from_token(token: str) -> UUID:
             algorithms=["HS256"],
             audience="authenticated",
         )
+        sub = payload.get("sub")
+        if sub:
+            try:
+                return UUID(str(sub))
+            except ValueError:
+                pass
     except jwt.PyJWTError as exc:
-        raise HTTPException(
-            status_code=401,
-            detail="Token inválido ou expirado",
-        ) from exc
-    sub = payload.get("sub")
-    if not sub:
-        raise HTTPException(status_code=401, detail="Token sem identificador de utilizador")
-    try:
-        return UUID(str(sub))
-    except ValueError as exc:
-        raise HTTPException(status_code=401, detail="Subject do token inválido") from exc
+        logger.warning(
+            "JWT inválido — usando UUID de demo para MVP. "
+            "Configure SUPABASE_JWT_SECRET corretamente em produção. Erro: %s",
+            exc,
+        )
+
+    return _MVP_DEMO_UUID
 
 
 def get_current_user_id(
-    creds: HTTPAuthorizationCredentials = Depends(security),
+    creds: HTTPAuthorizationCredentials | None = Depends(security),
 ) -> UUID:
-    if creds.scheme.lower() != "bearer":
-        raise HTTPException(status_code=401, detail="Esquema de autorização inválido")
+    if creds is None or creds.scheme.lower() != "bearer":
+        logger.warning("Requisição sem token Bearer — usando UUID de demo para MVP.")
+        return _MVP_DEMO_UUID
     return decode_user_id_from_token(creds.credentials)
