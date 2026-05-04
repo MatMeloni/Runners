@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 
+import { ComparisonSummary } from "@/components/sessions/comparison-summary";
 import { SessionChartsPanel } from "@/components/sessions/session-charts-panel";
 import { Label } from "@/components/ui/label";
 import {
@@ -75,10 +76,13 @@ export default function ComparePage() {
       ) : null}
 
       {numA > 0 && numB > 0 && numA !== numB ? (
-        <div className="grid gap-6 xl:grid-cols-2">
-          <SessionChartsPanel sessionId={numA} label="Treino A" />
-          <SessionChartsPanel sessionId={numB} label="Treino B" />
-        </div>
+        <>
+          <ComparisonSummary sessionIdA={numA} sessionIdB={numB} />
+          <div className="grid gap-6 xl:grid-cols-2">
+            <SessionChartsPanel sessionId={numA} label="Treino A" />
+            <SessionChartsPanel sessionId={numB} label="Treino B" />
+          </div>
+        </>
       ) : null}
     </div>
   );

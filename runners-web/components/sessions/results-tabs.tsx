@@ -8,6 +8,7 @@ import { AnglesLineChart } from "@/components/charts/angles-line-chart";
 import { CadenceAreaChart } from "@/components/charts/cadence-area-chart";
 import { GctBarChart } from "@/components/charts/gct-bar-chart";
 import { JointRadarChart } from "@/components/charts/joint-radar-chart";
+import { buildTips, ImprovementTipsList } from "@/components/metrics/improvement-tips";
 import { LiveMetricCard } from "@/components/metrics/live-metric-card";
 import { SessionStatusBadge } from "@/components/sessions/session-status-badge";
 import { UploadProgress } from "@/components/sessions/upload-progress";
@@ -26,56 +27,6 @@ import { formatAngle } from "@/lib/utils";
 function mean(nums: number[]): number | null {
   if (nums.length === 0) return null;
   return nums.reduce((a, b) => a + b, 0) / nums.length;
-}
-
-type Tip = { title: string; problem: string; impact: string; action: string };
-
-const TIPS = {
-  kneeHigh: {
-    title: "Joelho quase reto no apoio",
-    problem: "Ângulo > 175° — extensão excessiva na fase de apoio.",
-    impact: "Aumenta o impacto transmitido ao joelho e quadril.",
-    action: "Mantenha uma leve flexão do joelho ao pousar. Tente não aterrar com a perna estendida.",
-  },
-  kneeLow: {
-    title: "Joelho muito fletido no apoio",
-    problem: "Ângulo < 150° — flexão excessiva ao tocar o solo.",
-    impact: "Sobrecarrega o tendão patelar e a articulação do joelho.",
-    action: "Encurte a passada e aumente a cadência. Pouse mais próximo do centro de gravidade.",
-  },
-  cadenceLow: {
-    title: "Cadência abaixo do ideal",
-    problem: "< 160 passos/min — passadas longas e lentas.",
-    impact: "Maior impacto por passada e maior risco de lesão por sobrecarga.",
-    action: "Dê passos mais curtos e rápidos. Use um metrônomo a 170 bpm como referência de treino.",
-  },
-  cadenceHigh: {
-    title: "Cadência acima do ideal",
-    problem: "> 200 passos/min — ritmo muito elevado.",
-    impact: "Pode indicar passadas muito curtas ou sobrecarga muscular.",
-    action: "Verifique o comprimento da passada. Reduza ligeiramente a frequência sem perder fluidez.",
-  },
-  gctHigh: {
-    title: "Tempo de contato longo",
-    problem: "> 250 ms no solo — fase de apoio prolongada.",
-    impact: "Reduz a eficiência de corrida e aumenta a fadiga muscular.",
-    action: "Foque em elevar o pé do chão rapidamente após o apoio. Imagine o solo como uma superfície quente.",
-  },
-} satisfies Record<string, Tip>;
-
-function ImprovementTip({ title, problem, impact, action }: Tip) {
-  return (
-    <div className="rounded-lg border border-yellow-200 bg-yellow-50/60 p-4 dark:border-yellow-900/40 dark:bg-yellow-950/20">
-      <p className="mb-1 text-sm font-semibold text-yellow-800 dark:text-yellow-300">{title}</p>
-      <p className="text-xs text-muted-foreground">
-        {problem} {impact}
-      </p>
-      <p className="mt-2 text-xs font-medium text-foreground">
-        <span className="text-yellow-700 dark:text-yellow-400">Dica: </span>
-        {action}
-      </p>
-    </div>
-  );
 }
 
 function formatDate(iso: string) {
@@ -263,24 +214,13 @@ export function ResultsTabs({ sessionId }: { sessionId: number }) {
             </div>
 
             {/* Dicas de Melhoria — derivadas das métricas fora do ideal */}
-            {(() => {
-              const gctMs = summary.gct !== null ? summary.gct * 1000 : null;
-              const tips: Tip[] = [];
-              if (summary.avgKnee !== null && summary.avgKnee > 175) tips.push(TIPS.kneeHigh);
-              if (summary.avgKnee !== null && summary.avgKnee < 150) tips.push(TIPS.kneeLow);
-              if (summary.cadence !== null && summary.cadence < 160) tips.push(TIPS.cadenceLow);
-              if (summary.cadence !== null && summary.cadence > 200) tips.push(TIPS.cadenceHigh);
-              if (gctMs !== null && gctMs > 250) tips.push(TIPS.gctHigh);
-              if (tips.length === 0) return null;
-              return (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Dicas de melhoria</p>
-                  {tips.map((tip) => (
-                    <ImprovementTip key={tip.title} {...tip} />
-                  ))}
-                </div>
-              );
-            })()}
+            <ImprovementTipsList
+              tips={buildTips(
+                summary.avgKnee,
+                summary.cadence,
+                summary.gct !== null ? summary.gct * 1000 : null,
+              )}
+            />
           </>
         ) : null}
       </TabsContent>
