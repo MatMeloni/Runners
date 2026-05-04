@@ -44,6 +44,7 @@ class AnalysisResultResponse(BaseModel):
     frame_index: int
     timestamp_s: float | None = None
     angles: dict[str, float] | None = None
+    landmarks: list[dict] | None = None
     ground_contact_time_s: float | None = None
     cadence_steps_per_min: float | None = None
     distance_m: float | None = None

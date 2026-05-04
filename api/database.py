@@ -60,6 +60,7 @@ class AnalysisResult(Base):
     frame_index = Column(Integer, nullable=False)
     timestamp_s = Column(Float, nullable=True)
     angles = Column(JSONB, nullable=True)
+    landmarks = Column(JSONB, nullable=True)
     ground_contact_time_s = Column(Float, nullable=True)
     cadence_steps_per_min = Column(Float, nullable=True)
     distance_m = Column(Float, nullable=True)

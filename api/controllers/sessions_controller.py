@@ -122,8 +122,10 @@ def run_vision_pipeline(session_id: int, video_path: str) -> None:
             cadence_val: float | None = None
             distance_val: float | None = None
 
+            landmarks_to_save: list[dict] | None = None
             if frame_idx % 5 == 0 and landmarks is not None:
                 angles_dict = compute_joint_angles(landmarks)
+                landmarks_to_save = landmarks
 
             if frame_idx % 30 == 0 and len(landmarks_buffer) >= 10:
                 gait = compute_gait_metrics(landmarks_buffer, fps)
@@ -137,6 +139,7 @@ def run_vision_pipeline(session_id: int, video_path: str) -> None:
                     frame_index=frame_idx,
                     timestamp_s=round(frame_idx / fps, 3),
                     angles=angles_dict if angles_dict else None,
+                    landmarks=landmarks_to_save,
                     ground_contact_time_s=gct_val,
                     cadence_steps_per_min=cadence_val,
                     distance_m=distance_val,

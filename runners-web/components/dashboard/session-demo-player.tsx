@@ -7,7 +7,47 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getSessionVideoUrl } from "@/lib/api";
 import { useSessions, useSessionResults } from "@/lib/queries";
-import type { AnalysisAngles, AnalysisResult } from "@/lib/types";
+import type { AnalysisAngles, AnalysisResult, PoseLandmark } from "@/lib/types";
+
+// MediaPipe Pose connections (landmark index pairs) — same as live-camera
+const POSE_CONNECTIONS: [number, number][] = [
+  [9, 10],
+  [11, 12], [11, 23], [12, 24], [23, 24],
+  [11, 13], [13, 15], [15, 17], [15, 19], [15, 21], [17, 19],
+  [12, 14], [14, 16], [16, 18], [16, 20], [16, 22], [18, 20],
+  [23, 25], [25, 27], [27, 29], [27, 31], [29, 31],
+  [24, 26], [26, 28], [28, 30], [28, 32], [30, 32],
+];
+
+function drawSkeleton(
+  ctx: CanvasRenderingContext2D,
+  landmarks: PoseLandmark[],
+  width: number,
+  height: number,
+) {
+  ctx.clearRect(0, 0, width, height);
+
+  ctx.lineWidth = 2;
+  for (const [a, b] of POSE_CONNECTIONS) {
+    const lmA = landmarks[a];
+    const lmB = landmarks[b];
+    if (!lmA || !lmB) continue;
+    if (lmA.visibility < 0.3 || lmB.visibility < 0.3) continue;
+    ctx.beginPath();
+    ctx.strokeStyle = `rgba(0, 220, 130, ${Math.min(lmA.visibility, lmB.visibility).toFixed(2)})`;
+    ctx.moveTo(lmA.x * width, lmA.y * height);
+    ctx.lineTo(lmB.x * width, lmB.y * height);
+    ctx.stroke();
+  }
+
+  for (const lm of landmarks) {
+    if (lm.visibility < 0.3) continue;
+    ctx.beginPath();
+    ctx.fillStyle = `rgba(255, 255, 255, ${lm.visibility.toFixed(2)})`;
+    ctx.arc(lm.x * width, lm.y * height, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
 
 function AngleRow({ label, value }: { label: string; value: number }) {
   return (
@@ -18,7 +58,7 @@ function AngleRow({ label, value }: { label: string; value: number }) {
   );
 }
 
-function findClosestFrame(results: AnalysisResult[], currentTime: number): AnalysisAngles | null {
+function findClosestFrame(results: AnalysisResult[], currentTime: number): AnalysisResult | null {
   if (results.length === 0) return null;
 
   let lo = 0;
@@ -29,18 +69,18 @@ function findClosestFrame(results: AnalysisResult[], currentTime: number): Analy
     if (ts < currentTime) lo = mid + 1;
     else hi = mid;
   }
-  // Pick the closer of lo and lo-1
   if (lo > 0) {
     const prev = results[lo - 1].timestamp_s ?? 0;
     const curr = results[lo].timestamp_s ?? 0;
     const chosen = Math.abs(prev - currentTime) <= Math.abs(curr - currentTime) ? lo - 1 : lo;
-    return results[chosen].angles;
+    return results[chosen];
   }
-  return results[lo].angles;
+  return results[lo];
 }
 
 export function SessionDemoPlayer() {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const skeletonCanvasRef = useRef<HTMLCanvasElement>(null);
   const [angles, setAngles] = useState<AnalysisAngles | null>(null);
 
   const sessionsQ = useSessions("all");
@@ -60,6 +100,13 @@ export function SessionDemoPlayer() {
     let objectUrl: string | null = null;
     setVideoLoading(true);
     setVideoBlobUrl(null);
+    setAngles(null);
+    // Clear skeleton canvas when switching sessions
+    const overlay = skeletonCanvasRef.current;
+    if (overlay) {
+      const ctx = overlay.getContext("2d");
+      ctx?.clearRect(0, 0, overlay.width, overlay.height);
+    }
     fetch(getSessionVideoUrl(activeId), {
       headers: { "ngrok-skip-browser-warning": "true" },
     })
@@ -91,6 +138,28 @@ export function SessionDemoPlayer() {
   const hasAngles =
     angles !== null && Object.values(angles).some((v) => v !== undefined);
 
+  function handleTimeUpdate() {
+    const vid = videoRef.current;
+    if (!vid || sortedResults.length === 0) return;
+
+    const frame = findClosestFrame(sortedResults, vid.currentTime);
+    if (!frame) return;
+
+    setAngles(frame.angles);
+
+    // Draw skeleton if this frame has stored landmarks
+    const overlay = skeletonCanvasRef.current;
+    if (overlay && frame.landmarks && frame.landmarks.length > 0) {
+      overlay.width = vid.clientWidth;
+      overlay.height = vid.clientHeight;
+      const ctx = overlay.getContext("2d");
+      if (ctx) drawSkeleton(ctx, frame.landmarks, overlay.width, overlay.height);
+    } else if (overlay && (!frame.landmarks || frame.landmarks.length === 0)) {
+      const ctx = overlay.getContext("2d");
+      ctx?.clearRect(0, 0, overlay.width, overlay.height);
+    }
+  }
+
   if (sessionsQ.isLoading) {
     return (
       <Card>
@@ -117,7 +186,9 @@ export function SessionDemoPlayer() {
           <select
             className="rounded-md border border-input bg-background px-2 py-1 text-xs text-foreground focus:outline-none"
             value={activeId ?? ""}
-            onChange={(e) => setSelectedId(Number(e.target.value))}
+            onChange={(e) => {
+              setSelectedId(Number(e.target.value));
+            }}
           >
             {doneSessions.map((s) => (
               <option key={s.id} value={s.id}>
@@ -142,14 +213,16 @@ export function SessionDemoPlayer() {
               loop
               muted
               playsInline
-              onTimeUpdate={() => {
-                const vid = videoRef.current;
-                if (!vid || sortedResults.length === 0) return;
-                const frame = findClosestFrame(sortedResults, vid.currentTime);
-                setAngles(frame);
-              }}
+              onTimeUpdate={handleTimeUpdate}
             />
           )}
+
+          {/* Skeleton overlay canvas — drawn on top of video */}
+          <canvas
+            ref={skeletonCanvasRef}
+            className="pointer-events-none absolute inset-0 h-full w-full"
+            aria-hidden
+          />
 
           {/* Angle overlay — top-right */}
           {hasAngles && angles && (

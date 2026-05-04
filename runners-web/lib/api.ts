@@ -125,6 +125,7 @@ function normalizeAnalysisResult(raw: unknown): AnalysisResult {
     frame_index: Number(o.frame_index),
     timestamp_s: o.timestamp_s === null || o.timestamp_s === undefined ? null : Number(o.timestamp_s),
     angles,
+    landmarks: Array.isArray(o.landmarks) ? (o.landmarks as import("@/lib/types").PoseLandmark[]) : null,
     ground_contact_time_s:
       o.ground_contact_time_s === null || o.ground_contact_time_s === undefined
         ? null

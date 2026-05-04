@@ -75,6 +75,7 @@ export interface AnalysisResult {
   frame_index: number;
   timestamp_s: number | null;
   angles: AnalysisAngles;
+  landmarks: PoseLandmark[] | null;
   ground_contact_time_s: number | null;
   cadence_steps_per_min: number | null;
   distance_m: number | null;
