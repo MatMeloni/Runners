@@ -22,12 +22,11 @@ services:
       - ./config:/app/config
     ports:
       - "${API_PORT:-8000}:${API_PORT:-8000}"
-    # alembic cria/atualiza tabelas no Supabase antes de subir o servidor
+    # MVP: sobe a API diretamente; tabelas são criadas por init_db() no startup
     command:
       - sh
       - -c
       - >
-        alembic upgrade head &&
         uvicorn api.main:app
         --host 0.0.0.0
         --port ${API_PORT:-8000}

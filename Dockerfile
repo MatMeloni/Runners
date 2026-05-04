@@ -22,8 +22,6 @@ COPY src/ ./src/
 COPY api/ ./api/
 COPY config/ ./config/
 COPY streamlit_app/ ./streamlit_app/
-COPY migrations/ ./migrations/
-COPY alembic.ini .
 
 # Diretórios de runtime criados em tempo de build para evitar erros de permissão
 RUN mkdir -p data/videos data/models
