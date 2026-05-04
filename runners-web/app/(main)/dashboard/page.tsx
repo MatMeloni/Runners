@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import { KpiCards } from "@/components/dashboard/kpi-cards";
 import { RecentSessionsTable } from "@/components/dashboard/recent-sessions-table";
+import { SessionDemoPlayer } from "@/components/dashboard/session-demo-player";
 import { Button } from "@/components/ui/button";
 
 export default function DashboardPage() {
@@ -20,6 +21,7 @@ export default function DashboardPage() {
         </Button>
       </div>
       <KpiCards />
+      <SessionDemoPlayer />
       <RecentSessionsTable />
     </div>
   );

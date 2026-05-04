@@ -2,6 +2,7 @@ from pathlib import Path
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session as OrmSession
 
 from api.auth import get_current_user_id
@@ -94,6 +95,26 @@ def upload_video(
     )
 
     return UploadResponse(job_id=session_id, status="processing")
+
+
+@router.get("/sessions/{session_id}/video")
+def get_session_video(
+    session_id: int,
+    db: OrmSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
+) -> FileResponse:
+    """Serve o arquivo de vídeo de uma sessão para reprodução no browser."""
+    row = (
+        db.query(SessionModel)
+        .filter(SessionModel.id == session_id)
+        .first()
+    )
+    if not row or not row.video_path:
+        raise HTTPException(status_code=404, detail="Vídeo não encontrado para esta sessão")
+    path = Path(row.video_path)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Arquivo de vídeo não encontrado no servidor")
+    return FileResponse(str(path), media_type="video/mp4")
 
 
 @router.get("/sessions/{session_id}/status", response_model=SessionStatusResponse)

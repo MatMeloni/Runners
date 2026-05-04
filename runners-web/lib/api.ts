@@ -221,6 +221,10 @@ export async function getSessionStatus(sessionId: number): Promise<SessionStatus
   };
 }
 
+export function getSessionVideoUrl(sessionId: number): string {
+  return `${getBaseUrl()}/api/sessions/${sessionId}/video`;
+}
+
 export async function getSessionResults(sessionId: number): Promise<AnalysisResult[]> {
   const url = `${getBaseUrl()}/api/sessions/${sessionId}/results`;
   const auth = await apiAuthHeaders();
