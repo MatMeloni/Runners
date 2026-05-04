@@ -28,9 +28,10 @@ export default function ComparePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Comparar treinos</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Comparar Biomecânica entre Treinos</h1>
         <p className="text-sm text-muted-foreground">
-          Escolha duas sessões concluídas para ver os gráficos lado a lado (história 7.2).
+          Selecione dois treinos processados para comparar ângulos articulares e métricas de marcha lado a lado.
+          Identifique padrões e evolução entre sessões.
         </p>
       </div>
 

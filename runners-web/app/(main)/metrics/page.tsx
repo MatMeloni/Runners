@@ -73,16 +73,19 @@ export default function MetricsPage() {
             label="Cadência"
             value={cadence === null || cadence === undefined ? "—" : cadence.toFixed(1)}
             unit="spm"
+            footer="Ideal: 160–190 passos/min para corrida eficiente"
           />
           <LiveMetricCard
             label="GCT"
             value={gct === null || gct === undefined ? "—" : `${(gct * 1000).toFixed(0)}`}
             unit="ms"
+            footer="Ideal: abaixo de 250 ms indica boa eficiência de passada"
           />
           <LiveMetricCard
             label="Distância"
             value={distance === null || distance === undefined ? "—" : distance.toFixed(2)}
             unit="m"
+            footer="Estimada pela análise de vídeo (contagem de passadas)"
           />
         </div>
       )}

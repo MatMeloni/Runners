@@ -13,15 +13,19 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Painel</h1>
-          <p className="text-sm text-muted-foreground">Visão geral das sessões e indicadores-chave.</p>
+          <h1 className="text-2xl font-semibold tracking-tight">Meu Painel de Corrida</h1>
+          <p className="text-sm text-muted-foreground">Acompanhe sua evolução biomecânica treino a treino.</p>
         </div>
         <Button asChild>
-          <Link href="/sessions/new">Nova sessão</Link>
+          <Link href="/sessions/new">Analisar novo treino</Link>
         </Button>
       </div>
       <KpiCards />
       <SessionDemoPlayer />
+      <p className="text-xs text-muted-foreground px-1">
+        Os pontos verdes representam a pose detectada pelo MediaPipe. Os valores no canto são os ângulos articulares
+        calculados automaticamente em cada frame — joelho, quadril e tronco.
+      </p>
       <RecentSessionsTable />
     </div>
   );

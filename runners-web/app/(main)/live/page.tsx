@@ -12,6 +12,22 @@ export default function LivePage() {
           Ângulos articulares em tempo real via câmera. Posicione-se de perfil para melhores resultados.
         </p>
       </div>
+
+      <div className="grid gap-2 rounded-lg border bg-muted/30 px-4 py-3 text-xs text-muted-foreground sm:grid-cols-3">
+        <div>
+          <span className="font-medium text-foreground">Joelho (apoio)</span>
+          <p>Ideal: 150–175°. Valores abaixo de 130° indicam sobrecarga articular.</p>
+        </div>
+        <div>
+          <span className="font-medium text-foreground">Cadência</span>
+          <p>Ideal: 160–190 passos/min. Cadência baixa aumenta o impacto por passada.</p>
+        </div>
+        <div>
+          <span className="font-medium text-foreground">GCT (contato com solo)</span>
+          <p>Ideal: 200–300 ms. Valores acima de 300 ms indicam passada ineficiente.</p>
+        </div>
+      </div>
+
       <LiveCamera />
     </div>
   );
