@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Play } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -51,6 +51,35 @@ export function SessionDemoPlayer() {
 
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const activeId = selectedId ?? doneSessions[0]?.id ?? null;
+
+  // Fetch video via JS (with ngrok bypass header) and expose as blob URL
+  const [videoBlobUrl, setVideoBlobUrl] = useState<string | null>(null);
+  const [videoLoading, setVideoLoading] = useState(false);
+  useEffect(() => {
+    if (!activeId) return;
+    let objectUrl: string | null = null;
+    setVideoLoading(true);
+    setVideoBlobUrl(null);
+    fetch(getSessionVideoUrl(activeId), {
+      headers: { "ngrok-skip-browser-warning": "true" },
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.blob();
+      })
+      .then((blob) => {
+        objectUrl = URL.createObjectURL(blob);
+        setVideoBlobUrl(objectUrl);
+      })
+      .catch(() => {
+        // video unavailable — player stays blank
+      })
+      .finally(() => setVideoLoading(false));
+
+    return () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [activeId]);
 
   const resultsQ = useSessionResults(activeId ?? 0, activeId !== null);
 
@@ -103,12 +132,12 @@ export function SessionDemoPlayer() {
           className="relative overflow-hidden rounded-xl border border-muted-foreground/20 bg-black"
           style={{ aspectRatio: "16/9", maxHeight: "400px" }}
         >
-          {activeId !== null && (
+          {activeId !== null && videoBlobUrl && (
             <video
               ref={videoRef}
-              key={activeId}
+              key={videoBlobUrl}
               className="h-full w-full object-contain"
-              src={getSessionVideoUrl(activeId)}
+              src={videoBlobUrl}
               autoPlay
               loop
               muted
@@ -143,10 +172,12 @@ export function SessionDemoPlayer() {
             </div>
           )}
 
-          {/* Loading overlay while fetching results */}
-          {resultsQ.isLoading && (
+          {/* Loading overlay while fetching video or results */}
+          {(videoLoading || resultsQ.isLoading) && (
             <div className="absolute inset-0 flex items-center justify-center bg-background/60">
-              <span className="text-xs text-muted-foreground">Carregando análise...</span>
+              <span className="text-xs text-muted-foreground">
+                {videoLoading ? "Carregando vídeo..." : "Carregando análise..."}
+              </span>
             </div>
           )}
 
